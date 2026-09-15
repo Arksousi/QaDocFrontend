@@ -25,7 +25,6 @@ import { Topbar } from '../../shared/topbar';
         <div class="card empty">
           <h2>No projects yet</h2>
           <p>Add a project to start tracking tickets.</p>
-          <button class="btn btn-primary" (click)="openAdd()">+ Add project</button>
         </div>
       } @else {
         <section aria-labelledby="recent-heading">
