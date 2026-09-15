@@ -1,0 +1,6 @@
+name = "qadocfrontend"
+compatibility_date = "2026-09-15"
+
+[assets]
+directory = "./dist/QaDocFrontend/browser"
+not_found_handling = "single-page-application"
