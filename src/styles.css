@@ -55,6 +55,8 @@ p { margin: 0 0 6px; }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-ghost { background: transparent; border-color: var(--border); }
 .btn-ghost:hover:not(:disabled) { background: #ebecf0; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #ae2e24; }
 .btn-sm { height: 28px; padding: 0 10px; font-size: 13px; }
 .icon-btn {
   border: 0; background: transparent; cursor: pointer; font-size: 18px; line-height: 1;
@@ -108,8 +110,15 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .recent-card p { margin: 0; }
 .id-chip { align-self: flex-start; font: 700 11px ui-monospace, monospace; background: var(--primary-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px; }
 
+/* The ⋯ button sits over the card rather than inside its <a>, so the card stays one link. */
+.recent-item { position: relative; }
+.recent-item .recent-card h3 { padding-right: 28px; }
+.recent-item .row-menu { position: absolute; top: 10px; right: 10px; }
+
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; }
+/* overflow-x:auto also clips vertically, which would cut off an open row menu. */
+.table-wrap.menu-open { overflow: visible; }
 .table { width: 100%; border-collapse: collapse; }
 .table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 2px solid var(--border); padding: 6px 10px; white-space: nowrap; }
 .table td { border-bottom: 1px solid var(--border); padding: 9px 10px; vertical-align: middle; }
@@ -119,6 +128,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .clickable { cursor: pointer; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .w-id { width: 72px; }
+.w-actions { width: 44px; padding-left: 0 !important; padding-right: 6px !important; text-align: right; }
+.row-menu { position: relative; display: inline-block; }
 .title-cell { font-weight: 500; }
 .th-sort { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; padding: 0; display: inline-flex; gap: 4px; align-items: center; }
 .th-sort:hover { color: var(--text); }
@@ -184,6 +195,9 @@ select.state-select { font-weight: 600; }
 .modal-header h2 { margin: 0; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-body { padding: 8px 20px 16px; overflow: auto; }
 .modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
+.info-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 12px 0 0; }
+.info-list dt { color: var(--muted); font-size: 13px; }
+.info-list dd { margin: 0; }
 
 .toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 200; max-width: min(420px, calc(100vw - 32px)); }
 .toast { display: flex; gap: 10px; align-items: flex-start; background: #172b4d; color: #fff; padding: 10px 12px; border-radius: 6px; box-shadow: var(--shadow-lg); }

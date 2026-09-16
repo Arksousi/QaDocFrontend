@@ -28,6 +28,8 @@ export class ApiService {
   project = (id: number) => firstValueFrom(this.http.get<Project>(`${this.base}/projects/${id}`));
   createProject = (projectName: string) =>
     firstValueFrom(this.http.post<Created>(`${this.base}/projects`, { projectName }));
+  /** Admin only. Cascades: every ticket in the project goes with it. */
+  deleteProject = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/projects/${id}`));
 
   // Ticket Viewer
   tickets(projectId: number, filters: TicketFilters) {

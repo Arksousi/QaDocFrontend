@@ -1,8 +1,9 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { Project } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
@@ -31,12 +32,27 @@ import { Topbar } from '../../shared/topbar';
           <h2 id="recent-heading" class="section-title">Recent projects</h2>
           <div class="recent-grid">
             @for (p of recent(); track p.projectId) {
-              <a class="card recent-card" [routerLink]="['/projects', p.projectId]">
-                <h3>{{ p.projectName }}</h3>
-                <p class="muted small">{{ p.openTicketCount }} open · {{ p.ticketCount }} total</p>
-                <p class="muted small">Last activity {{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</p>
-                @if (p.createdByName) { <p class="muted small">Created by {{ p.createdByName }}</p> }
-              </a>
+              <div class="recent-item">
+                <a class="card recent-card" [routerLink]="['/projects', p.projectId]">
+                  <h3>{{ p.projectName }}</h3>
+                  <p class="muted small">{{ p.openTicketCount }} open · {{ p.ticketCount }} total</p>
+                  <p class="muted small">Last activity {{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</p>
+                  @if (p.createdByName) { <p class="muted small">Created by {{ p.createdByName }}</p> }
+                </a>
+                <div class="row-menu">
+                  <button class="icon-btn" (click)="toggleMenu('card', p)"
+                    [attr.aria-expanded]="menuKey() === 'card:' + p.projectId" aria-haspopup="menu"
+                    [attr.aria-label]="'Actions for ' + p.projectName">⋯</button>
+                  @if (menuKey() === 'card:' + p.projectId) {
+                    <div class="menu" role="menu">
+                      <button role="menuitem" (click)="openInfo(p)">Project info</button>
+                      @if (auth.isAdmin()) {
+                        <button role="menuitem" class="danger" (click)="askDelete(p)">Delete project…</button>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
             }
           </div>
         </section>
@@ -47,10 +63,13 @@ import { Topbar } from '../../shared/topbar';
             <input class="search" type="search" placeholder="Search by name…" aria-label="Search projects"
               [ngModel]="search()" (ngModelChange)="search.set($event)" />
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap" [class.menu-open]="menuKey() !== null">
             <table class="table table-hover">
               <thead>
-                <tr><th>Name</th><th>Created by</th><th class="num">Open tickets</th><th class="num">Total tickets</th><th>Last activity</th></tr>
+                <tr>
+                  <th>Name</th><th>Created by</th><th class="num">Open tickets</th><th class="num">Total tickets</th>
+                  <th>Last activity</th><th class="w-actions"><span class="sr-only">Actions</span></th>
+                </tr>
               </thead>
               <tbody>
                 @for (p of filtered(); track p.projectId) {
@@ -62,9 +81,24 @@ import { Topbar } from '../../shared/topbar';
                     <td class="num">{{ p.openTicketCount }}</td>
                     <td class="num">{{ p.ticketCount }}</td>
                     <td class="muted nowrap">{{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</td>
+                    <td class="w-actions" (click)="$event.stopPropagation()">
+                      <div class="row-menu">
+                        <button class="icon-btn" (click)="toggleMenu('row', p)"
+                          [attr.aria-expanded]="menuKey() === 'row:' + p.projectId" aria-haspopup="menu"
+                          [attr.aria-label]="'Actions for ' + p.projectName">⋯</button>
+                        @if (menuKey() === 'row:' + p.projectId) {
+                          <div class="menu" role="menu">
+                            <button role="menuitem" (click)="openInfo(p)">Project info</button>
+                            @if (auth.isAdmin()) {
+                              <button role="menuitem" class="danger" (click)="askDelete(p)">Delete project…</button>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="5" class="muted center">No projects match “{{ search() }}”.</td></tr>
+                  <tr><td colspan="6" class="muted center">No projects match “{{ search() }}”.</td></tr>
                 }
               </tbody>
             </table>
@@ -86,12 +120,66 @@ import { Topbar } from '../../shared/topbar';
         </ng-container>
       </app-modal>
     }
+
+    @if (info(); as p) {
+      <app-modal heading="Project info" (closed)="info.set(null)">
+        <h3>{{ p.projectName }}</h3>
+        <dl class="info-list">
+          <dt>Created by</dt>
+          <dd>{{ p.createdByName ?? 'unknown' }}</dd>
+          <dt>Created</dt>
+          <dd>{{ p.createdAt | date: 'MMM d, y, h:mm a' }}</dd>
+          <dt>Open tickets</dt>
+          <dd>{{ p.openTicketCount }}</dd>
+          <dt>Total tickets</dt>
+          <dd>{{ p.ticketCount }}</dd>
+          <dt>Last activity</dt>
+          <dd>{{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</dd>
+        </dl>
+        <ng-container modal-actions>
+          @if (auth.isAdmin()) {
+            <button class="btn btn-ghost danger" (click)="askDelete(p)">Delete project…</button>
+            <span class="grow"></span>
+          }
+          <button class="btn btn-ghost" (click)="info.set(null)">Close</button>
+          <a class="btn btn-primary" [routerLink]="['/projects', p.projectId]">Open project</a>
+        </ng-container>
+      </app-modal>
+    }
+
+    @if (confirming(); as p) {
+      <app-modal heading="Delete project" (closed)="cancelDelete()">
+        <p>
+          This permanently deletes <strong>{{ p.projectName }}</strong>
+          @if (p.ticketCount > 0) {
+            and all {{ p.ticketCount }} {{ p.ticketCount === 1 ? 'ticket' : 'tickets' }} in it, with their comments and history.
+          } @else {
+            . It has no tickets.
+          }
+        </p>
+        <p class="danger"><strong>This cannot be undone.</strong></p>
+        <form id="deleteProjectForm" class="form" (ngSubmit)="remove()">
+          <label>Type <span class="mono">{{ p.projectName }}</span> to confirm
+            <input name="confirmName" [(ngModel)]="confirmName" autocomplete="off" autofocus
+              [attr.aria-label]="'Type ' + p.projectName + ' to confirm deletion'" />
+          </label>
+        </form>
+        <ng-container modal-actions>
+          <button class="btn btn-ghost" (click)="cancelDelete()">Cancel</button>
+          <button class="btn btn-danger" type="submit" form="deleteProjectForm" [disabled]="!nameMatches() || deleting()">
+            {{ deleting() ? 'Deleting…' : 'Delete project' }}
+          </button>
+        </ng-container>
+      </app-modal>
+    }
   `,
 })
 export class ProjectMenuPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly host = inject(ElementRef<HTMLElement>);
+  protected readonly auth = inject(AuthService);
 
   readonly projects = signal<Project[]>([]);
   readonly recent = signal<Project[]>([]);
@@ -101,6 +189,13 @@ export class ProjectMenuPage implements OnInit {
   readonly search = signal('');
   newName = '';
 
+  /** Which ⋯ menu is open, as "<surface>:<projectId>" — a project appears in both the cards and the table. */
+  readonly menuKey = signal<string | null>(null);
+  readonly info = signal<Project | null>(null);
+  readonly confirming = signal<Project | null>(null);
+  readonly deleting = signal(false);
+  confirmName = '';
+
   readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     if (!q) return this.projects();
@@ -108,6 +203,10 @@ export class ProjectMenuPage implements OnInit {
   });
 
   async ngOnInit() {
+    await this.load();
+  }
+
+  private async load() {
     try {
       const [all, recent] = await Promise.all([this.api.projects(), this.api.recentProjects(5)]);
       this.projects.set(all);
@@ -137,5 +236,60 @@ export class ProjectMenuPage implements OnInit {
 
   open(p: Project) {
     this.router.navigate(['/projects', p.projectId]);
+  }
+
+  // ---------- ⋯ menu ----------
+
+  toggleMenu(surface: 'card' | 'row', p: Project) {
+    const key = `${surface}:${p.projectId}`;
+    this.menuKey.set(this.menuKey() === key ? null : key);
+  }
+
+  openInfo(p: Project) {
+    this.menuKey.set(null);
+    this.info.set(p);
+  }
+
+  /** Opens the type-to-confirm dialog. Closes the info modal so the two never stack. */
+  askDelete(p: Project) {
+    this.menuKey.set(null);
+    this.info.set(null);
+    this.confirmName = '';
+    this.confirming.set(p);
+  }
+
+  cancelDelete() {
+    this.confirming.set(null);
+    this.confirmName = '';
+  }
+
+  /** The typed name must match exactly (trimmed) before Delete becomes clickable. */
+  nameMatches() {
+    const p = this.confirming();
+    return !!p && this.confirmName.trim() === p.projectName;
+  }
+
+  async remove() {
+    const p = this.confirming();
+    if (!p || !this.nameMatches() || this.deleting()) return;
+    this.deleting.set(true);
+    try {
+      await this.api.deleteProject(p.projectId);
+      this.toast.success(`Project “${p.projectName}” deleted.`);
+      this.cancelDelete();
+      await this.load();
+    } finally {
+      this.deleting.set(false);
+    }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (this.menuKey() && !(event.target as HTMLElement).closest?.('.row-menu')) this.menuKey.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    this.menuKey.set(null);
   }
 }
