@@ -150,16 +150,16 @@ import { Topbar } from '../../shared/topbar';
     @if (confirming(); as p) {
       <app-modal heading="Delete project" (closed)="cancelDelete()">
         <p>
-          This permanently deletes <strong>{{ p.projectName }}</strong>
           @if (p.ticketCount > 0) {
-            and all {{ p.ticketCount }} {{ p.ticketCount === 1 ? 'ticket' : 'tickets' }} in it, with their comments and history.
+            This permanently deletes <strong>{{ p.projectName }}</strong> and all
+            {{ p.ticketCount }} {{ p.ticketCount === 1 ? 'ticket' : 'tickets' }} in it, with their comments and history.
           } @else {
-            . It has no tickets.
+            This permanently deletes <strong>{{ p.projectName }}</strong>. It has no tickets.
           }
         </p>
-        <p class="danger"><strong>This cannot be undone.</strong></p>
         <form id="deleteProjectForm" class="form" (ngSubmit)="remove()">
-          <label>Type <span class="mono">{{ p.projectName }}</span> to confirm
+          <label>
+            <span>Type “<span class="danger mono">{{ p.projectName }}</span>” to confirm</span>
             <input name="confirmName" [(ngModel)]="confirmName" autocomplete="off" autofocus
               [attr.aria-label]="'Type ' + p.projectName + ' to confirm deletion'" />
           </label>
