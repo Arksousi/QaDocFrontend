@@ -1,6 +1,6 @@
-# QaDocFrontend
+# QA Documentation
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.0.8.
+This project is For Qualitiy Assuarance Engineers Documentation , Something easier than JIRA For Juniors to Understand the Concepts of QA
 
 ## Development server
 
