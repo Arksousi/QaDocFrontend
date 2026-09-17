@@ -47,8 +47,8 @@ import { TagInput } from './tag-input';
         </div>
         <div class="field">
           <span class="field-label">Description</span>
-          <app-rich-text [(value)]="draft.description"
-            placeholder="Steps to reproduce, expected result, actual result, environment… Paste screenshots here." />
+          <app-rich-text [(value)]="draft.description" [projectId]="projectId()"
+            placeholder="Describe the issue, or press 📋 Template. Paste screenshots or videos here." />
         </div>
       </form>
       <ng-container modal-actions>
@@ -63,6 +63,8 @@ export class TicketCreate {
   private readonly toast = inject(ToastService);
 
   readonly projectId = input.required<number>();
+  /** Which folder the ticket is filed into; it decides the key, e.g. RMS-V1-0001. */
+  readonly folderId = input.required<number>();
   readonly suggestions = input<Suggestions>({ tags: [] });
   readonly users = input<UserOption[]>([]);
   readonly created = output<number>();
@@ -73,14 +75,14 @@ export class TicketCreate {
   readonly priorities = PRIORITIES;
   readonly impacts = IMPACTS;
 
-  draft: SaveTicket = { projectId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  draft: SaveTicket = { folderId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 
   async save() {
     if (!this.draft.title.trim() || this.saving()) return;
     this.saving.set(true);
     try {
-      const { id } = await this.api.createTicket({ ...this.draft, title: this.draft.title.trim(), projectId: this.projectId() });
-      this.toast.success(`Ticket #${id} created.`);
+      const { id } = await this.api.createTicket({ ...this.draft, title: this.draft.title.trim(), folderId: this.folderId() });
+      this.toast.success('Ticket created.');
       this.created.emit(id);
     } finally {
       this.saving.set(false);

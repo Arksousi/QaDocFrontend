@@ -14,56 +14,57 @@ import { TagInput } from './tag-input';
   selector: 'app-ticket-details',
   imports: [FormsModule, DatePipe, Modal, TagInput, RichText],
   template: `
-    <app-modal [heading]="ticket() ? '#' + ticket()!.ticketId + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
+    <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
         <section class="details-box" aria-label="Details">
           <h3 class="box-title">Details</h3>
           <form id="ticketDetailsForm" class="details-grid" (ngSubmit)="save()">
             <div class="detail">
               <span class="detail-label">Activity Date</span>
-              <span class="detail-value">{{ t.activityDate | date: 'MMM d, y, h:mm a' }}</span>
+              <span class="detail-value">{{ t.activityDate | date: 'MMMM d, y, h:mm a' }}</span>
             </div>
 
             <label class="detail span-2">
               <span class="detail-label">Title *</span>
-              <input name="title" [(ngModel)]="form.title" required maxlength="200" (ngModelChange)="touch()" />
+              <input name="title" [(ngModel)]="form.title" required maxlength="200" [readonly]="!canEdit()" (ngModelChange)="touch()" />
             </label>
 
             <label class="detail">
               <span class="detail-label">Assigned To</span>
-              <select name="assignedTo" [(ngModel)]="form.assignedToUserId" (ngModelChange)="touch()">
+              <select name="assignedTo" [(ngModel)]="form.assignedToUserId" [disabled]="!canEdit()" (ngModelChange)="touch()">
                 <option [ngValue]="null">Unassigned</option>
                 @for (u of assigneeOptions(); track u.userId) { <option [ngValue]="u.userId">{{ u.displayName }}</option> }
               </select>
             </label>
             <label class="detail">
               <span class="detail-label">State</span>
-              <select name="state" [(ngModel)]="form.state" (ngModelChange)="touch()" class="state-select">
+              <select name="state" [(ngModel)]="form.state" [disabled]="!canEdit()" (ngModelChange)="touch()" class="state-select">
                 @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
               </select>
             </label>
             <label class="detail">
               <span class="detail-label">Priority</span>
-              <select name="priority" [(ngModel)]="form.priority" (ngModelChange)="touch()">
+              <select name="priority" [(ngModel)]="form.priority" [disabled]="!canEdit()" (ngModelChange)="touch()">
                 @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
               </select>
             </label>
             <label class="detail">
               <span class="detail-label">Impact</span>
-              <select name="impact" [(ngModel)]="form.impact" (ngModelChange)="touch()">
+              <select name="impact" [(ngModel)]="form.impact" [disabled]="!canEdit()" (ngModelChange)="touch()">
                 @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
               </select>
             </label>
 
             <div class="detail span-2">
               <label class="detail-label" for="details-tags">Tag</label>
-              <app-tag-input inputId="details-tags" [tags]="form.tags" (tagsChange)="form.tags = $event; touch()" [suggestions]="suggestions().tags" />
+              <app-tag-input inputId="details-tags" [readonly]="!canEdit()" [tags]="form.tags" (tagsChange)="form.tags = $event; touch()" [suggestions]="suggestions().tags" />
             </div>
 
             <div class="detail span-2">
               <span class="detail-label">Description</span>
               <app-rich-text [value]="form.description" (valueChange)="form.description = $event; touch()"
-                placeholder="Steps to reproduce, expected result, actual result, environment… Paste screenshots here." />
+                [projectId]="t.projectId" [readonly]="!canEdit()"
+                placeholder="Describe the issue, or press 📋 Template. Paste screenshots or videos here." />
             </div>
           </form>
           <p class="muted small audit">
@@ -75,11 +76,15 @@ import { TagInput } from './tag-input';
               <button type="button" class="btn btn-ghost danger" (click)="remove()">Delete ticket</button>
             }
             <span class="grow"></span>
-            @if (dirty()) {
-              <span class="muted small">Unsaved changes</span>
-              <button type="button" class="btn btn-ghost" (click)="reset()">Discard</button>
+            @if (canEdit()) {
+              @if (dirty()) {
+                <span class="muted small">Unsaved changes</span>
+                <button type="button" class="btn btn-ghost" (click)="reset()">Discard</button>
+              }
+              <button type="submit" form="ticketDetailsForm" class="btn btn-primary" [disabled]="!dirty() || saving() || !form.title.trim()">Save changes</button>
+            } @else {
+              <span class="muted small">You have read-only access to this project. You can still comment.</span>
             }
-            <button type="submit" form="ticketDetailsForm" class="btn btn-primary" [disabled]="!dirty() || saving() || !form.title.trim()">Save changes</button>
           </div>
         </section>
 
@@ -166,6 +171,8 @@ export class TicketDetails {
   readonly ticketId = input.required<number>();
   readonly suggestions = input<Suggestions>({ tags: [] });
   readonly users = input<UserOption[]>([]);
+  /** False for project Viewers: the API refuses their saves, so do not offer them. */
+  readonly canEdit = input(true);
   /** Emitted after a save, comment or delete so the list can refresh. */
   readonly changed = output<void>();
   readonly closed = output<void>();
@@ -237,7 +244,7 @@ export class TicketDetails {
     try {
       await this.api.updateTicket(t.ticketId, normalise(this.form));
       this.load(await this.api.ticket(t.ticketId));
-      this.toast.success(`Ticket “${t.title}” saved.`);
+      this.toast.success(`${t.ticketKey} saved.`);
       this.changed.emit();
     } finally {
       this.saving.set(false);
@@ -262,9 +269,9 @@ export class TicketDetails {
 
   async remove() {
     const t = this.ticket();
-    if (!t || !confirm(`Delete ticket “${t.title}” with its comments and history? This cannot be undone.`)) return;
+    if (!t || !confirm(`Delete ${t.ticketKey} “${t.title}” with its comments and history? This cannot be undone.`)) return;
     await this.api.deleteTicket(t.ticketId);
-    this.toast.success(`Ticket “${t.title}” deleted.`);
+    this.toast.success(`${t.ticketKey} deleted.`);
     this.changed.emit();
     this.closed.emit();
   }
@@ -277,12 +284,12 @@ export class TicketDetails {
 }
 
 function emptyForm(): SaveTicket {
-  return { projectId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  return { folderId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 }
 
 function toForm(t: Ticket): SaveTicket {
   return normalise({
-    projectId: t.projectId,
+    folderId: t.folderId,
     title: t.title,
     description: toRichText(t.description),
     assignedToUserId: t.assignedToUserId,
@@ -296,7 +303,7 @@ function toForm(t: Ticket): SaveTicket {
 /** Same shape the server stores, so "dirty" ignores whitespace-only differences. */
 function normalise(f: SaveTicket): SaveTicket {
   return {
-    projectId: f.projectId,
+    folderId: f.folderId,
     title: f.title.trim(),
     description: (f.description ?? '').trimEnd(),
     assignedToUserId: f.assignedToUserId ?? null,

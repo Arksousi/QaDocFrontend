@@ -1,24 +1,30 @@
-import { Component, input, model, signal } from '@angular/core';
+import { Component, ElementRef, input, model, signal, viewChild } from '@angular/core';
 
 /** Chip-style editor for free-text tags. Enter or comma adds a tag; Backspace on an empty box removes the last one. */
 @Component({
   selector: 'app-tag-input',
   template: `
-    <div class="tag-input" (click)="box.focus()">
+    <div class="tag-input" [class.tag-input-readonly]="readonly()" (click)="box()?.nativeElement.focus()">
       @for (tag of tags(); track tag) {
         <span class="tag">
           {{ tag }}
-          <button type="button" class="tag-remove" (click)="remove(tag); $event.stopPropagation()" [attr.aria-label]="'Remove tag ' + tag">×</button>
+          @if (!readonly()) {
+            <button type="button" class="tag-remove" (click)="remove(tag); $event.stopPropagation()" [attr.aria-label]="'Remove tag ' + tag">×</button>
+          }
         </span>
+      } @empty {
+        @if (readonly()) { <span class="muted small">No tags</span> }
       }
-      <input #box [id]="inputId()" [attr.list]="listId" [value]="draft()" (input)="onInput(box.value)"
-        (keydown.enter)="$event.preventDefault(); commit()" (keydown.backspace)="onBackspace()" (blur)="commit()"
-        [placeholder]="tags().length ? '' : 'Add tags…'" maxlength="50" autocomplete="off" />
-      <datalist [id]="listId">
-        @for (s of suggestions(); track s) {
-          <option [value]="s"></option>
-        }
-      </datalist>
+      @if (!readonly()) {
+        <input #box [id]="inputId()" [attr.list]="listId" [value]="draft()" (input)="onInput(box.value)"
+          (keydown.enter)="$event.preventDefault(); commit()" (keydown.backspace)="onBackspace()" (blur)="commit()"
+          [placeholder]="tags().length ? '' : 'Add tags…'" maxlength="50" autocomplete="off" />
+        <datalist [id]="listId">
+          @for (s of suggestions(); track s) {
+            <option [value]="s"></option>
+          }
+        </datalist>
+      }
     </div>
   `,
 })
@@ -26,6 +32,9 @@ export class TagInput {
   readonly tags = model<string[]>([]);
   readonly suggestions = input<string[]>([]);
   readonly inputId = input<string>('');
+  /** Shows the tags without any way to change them (project Viewers). */
+  readonly readonly = input(false);
+  protected readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
   readonly draft = signal('');
   readonly listId = `tag-suggestions-${Math.random().toString(36).slice(2, 8)}`;
 

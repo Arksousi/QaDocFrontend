@@ -4,14 +4,15 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { Project } from '../../core/models';
+import { Project, canManageMembers } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
+import { ProjectMembers } from './project-members';
 
 @Component({
   selector: 'app-project-menu',
-  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar],
+  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers],
   template: `
     <app-topbar>
       <button class="btn btn-primary" (click)="openAdd()">+ Add project</button>
@@ -34,6 +35,7 @@ import { Topbar } from '../../shared/topbar';
             @for (p of recent(); track p.projectId) {
               <div class="recent-item">
                 <a class="card recent-card" [routerLink]="['/projects', p.projectId]">
+                  <span class="id-chip">{{ p.projectCode }}</span>
                   <h3>{{ p.projectName }}</h3>
                   <p class="muted small">{{ p.openTicketCount }} open · {{ p.ticketCount }} total</p>
                   <p class="muted small">Last activity {{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</p>
@@ -46,6 +48,9 @@ import { Topbar } from '../../shared/topbar';
                   @if (menuKey() === 'card:' + p.projectId) {
                     <div class="menu" role="menu">
                       <button role="menuitem" (click)="openInfo(p)">Project info</button>
+                      @if (canManage(p)) {
+                        <button role="menuitem" (click)="openMembers(p)">Manage members…</button>
+                      }
                       @if (auth.isAdmin()) {
                         <button role="menuitem" class="danger" (click)="askDelete(p)">Delete project…</button>
                       }
@@ -67,13 +72,14 @@ import { Topbar } from '../../shared/topbar';
             <table class="table table-hover">
               <thead>
                 <tr>
-                  <th>Name</th><th>Created by</th><th class="num">Open tickets</th><th class="num">Total tickets</th>
+                  <th>Code</th><th>Name</th><th>Created by</th><th class="num">Open tickets</th><th class="num">Total tickets</th>
                   <th>Last activity</th><th class="w-actions"><span class="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 @for (p of filtered(); track p.projectId) {
                   <tr class="clickable" (click)="open(p)">
+                    <td><span class="id-chip">{{ p.projectCode }}</span></td>
                     <td><a [routerLink]="['/projects', p.projectId]" (click)="$event.stopPropagation()">{{ p.projectName }}</a></td>
                     <td>
                       @if (p.createdByName) { {{ p.createdByName }} } @else { <span class="muted">—</span> }
@@ -89,6 +95,9 @@ import { Topbar } from '../../shared/topbar';
                         @if (menuKey() === 'row:' + p.projectId) {
                           <div class="menu" role="menu">
                             <button role="menuitem" (click)="openInfo(p)">Project info</button>
+                            @if (canManage(p)) {
+                              <button role="menuitem" (click)="openMembers(p)">Manage members…</button>
+                            }
                             @if (auth.isAdmin()) {
                               <button role="menuitem" class="danger" (click)="askDelete(p)">Delete project…</button>
                             }
@@ -98,7 +107,7 @@ import { Topbar } from '../../shared/topbar';
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="muted center">No projects match “{{ search() }}”.</td></tr>
+                  <tr><td colspan="7" class="muted center">No projects match “{{ search() }}”.</td></tr>
                 }
               </tbody>
             </table>
@@ -111,12 +120,18 @@ import { Topbar } from '../../shared/topbar';
       <app-modal heading="Add project" (closed)="adding.set(false)">
         <form id="addProjectForm" class="form" (ngSubmit)="save()">
           <label>Name *
-            <input name="name" [(ngModel)]="newName" required maxlength="150" autofocus placeholder="e.g. Web Shop" />
+            <input name="name" [(ngModel)]="newName" required maxlength="150" autofocus
+              placeholder="e.g. Restaurant Management System" (ngModelChange)="suggestCode()" />
+          </label>
+          <label>Code *
+            <input name="code" [(ngModel)]="newCode" required maxlength="10" placeholder="e.g. RMS"
+              (ngModelChange)="newCode = $event.toUpperCase(); codeTouched = true" />
+            <span class="hint">Starts every ticket key in this project, e.g. <span class="mono">{{ keyExample() }}</span></span>
           </label>
         </form>
         <ng-container modal-actions>
           <button class="btn btn-ghost" (click)="adding.set(false)">Cancel</button>
-          <button class="btn btn-primary" type="submit" form="addProjectForm" [disabled]="saving() || !newName.trim()">Add project</button>
+          <button class="btn btn-primary" type="submit" form="addProjectForm" [disabled]="saving() || !newName.trim() || !newCode.trim()">Add project</button>
         </ng-container>
       </app-modal>
     }
@@ -125,6 +140,8 @@ import { Topbar } from '../../shared/topbar';
       <app-modal heading="Project info" (closed)="info.set(null)">
         <h3>{{ p.projectName }}</h3>
         <dl class="info-list">
+          <dt>Code</dt>
+          <dd><span class="id-chip">{{ p.projectCode }}</span></dd>
           <dt>Created by</dt>
           <dd>{{ p.createdByName ?? 'unknown' }}</dd>
           <dt>Created</dt>
@@ -145,6 +162,10 @@ import { Topbar } from '../../shared/topbar';
           <a class="btn btn-primary" [routerLink]="['/projects', p.projectId]">Open project</a>
         </ng-container>
       </app-modal>
+    }
+
+    @if (managing(); as p) {
+      <app-project-members [project]="p" (closed)="managing.set(null)" (changed)="load()" />
     }
 
     @if (confirming(); as p) {
@@ -188,10 +209,14 @@ export class ProjectMenuPage implements OnInit {
   readonly saving = signal(false);
   readonly search = signal('');
   newName = '';
+  newCode = '';
+  /** Stops the suggestion overwriting a code the user typed themselves. */
+  codeTouched = false;
 
   /** Which ⋯ menu is open, as "<surface>:<projectId>" — a project appears in both the cards and the table. */
   readonly menuKey = signal<string | null>(null);
   readonly info = signal<Project | null>(null);
+  readonly managing = signal<Project | null>(null);
   readonly confirming = signal<Project | null>(null);
   readonly deleting = signal(false);
   confirmName = '';
@@ -206,7 +231,8 @@ export class ProjectMenuPage implements OnInit {
     await this.load();
   }
 
-  private async load() {
+  /** Also called after membership changes: a role change can alter what the menu offers. */
+  async load() {
     try {
       const [all, recent] = await Promise.all([this.api.projects(), this.api.recentProjects(5)]);
       this.projects.set(all);
@@ -218,16 +244,37 @@ export class ProjectMenuPage implements OnInit {
 
   openAdd() {
     this.newName = '';
+    this.newCode = '';
+    this.codeTouched = false;
     this.adding.set(true);
+  }
+
+  /**
+   * Offers a code as the name is typed: initials for multi-word names ("Restaurant Management
+   * System" → RMS), the first letters otherwise. Mirrors what the migration does to old projects.
+   */
+  suggestCode() {
+    if (this.codeTouched) return;
+    const words = this.newName.trim().split(/\s+/).filter(Boolean);
+    const derived =
+      words.length > 1
+        ? words.map((w) => w[0]).join('')
+        : (words[0] ?? '').slice(0, 4);
+    this.newCode = derived.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+  }
+
+  keyExample() {
+    return `${this.newCode || 'RMS'}-V1-0001`;
   }
 
   async save() {
     const name = this.newName.trim();
-    if (!name || this.saving()) return;
+    const code = this.newCode.trim().toUpperCase();
+    if (!name || !code || this.saving()) return;
     this.saving.set(true);
     try {
-      const { id } = await this.api.createProject(name);
-      this.toast.success(`Project “${name}” created.`);
+      const { id } = await this.api.createProject(name, code);
+      this.toast.success(`Project “${name}” (${code}) created.`);
       this.router.navigate(['/projects', id]);
     } finally {
       this.saving.set(false);
@@ -248,6 +295,17 @@ export class ProjectMenuPage implements OnInit {
   openInfo(p: Project) {
     this.menuKey.set(null);
     this.info.set(p);
+  }
+
+  /** Managers on their own project; Admins are reported as Manager everywhere. */
+  canManage(p: Project) {
+    return canManageMembers(p.myRole);
+  }
+
+  openMembers(p: Project) {
+    this.menuKey.set(null);
+    this.info.set(null);
+    this.managing.set(p);
   }
 
   /** Opens the type-to-confirm dialog. Closes the info modal so the two never stack. */
