@@ -81,7 +81,7 @@ import { TagInput } from './tag-input';
             </div>
           </form>
           <p class="muted small audit">
-            Created by {{ t.createdByName ?? 'unknown' }} on {{ t.createdAt | date: 'MMM d, y, h:mm a' }}
+            Created by {{ t.createdByName ?? 'unknown' }} on {{ t.createdAt | date: 'MMMM d, y, h:mm a' }}
             @if (t.updatedByName) { · Last updated by {{ t.updatedByName }} }
           </p>
           <div class="box-actions">
@@ -118,7 +118,7 @@ import { TagInput } from './tag-input';
                 <div class="grow">
                   <header class="comment-head">
                     <strong>{{ c.authorName }}</strong>
-                    <time class="muted small" [attr.datetime]="c.createdAt">{{ c.createdAt | date: 'MMM d, y, h:mm a' }}</time>
+                    <time class="muted small" [attr.datetime]="c.createdAt">{{ c.createdAt | date: 'MMMM d, y, h:mm a' }}</time>
                   </header>
                   <p class="prose">{{ c.text }}</p>
                 </div>

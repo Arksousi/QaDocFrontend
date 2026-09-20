@@ -59,6 +59,9 @@ export class ApiService {
     }
     return firstValueFrom(this.http.get<Ticket[]>(`${this.base}/projects/${projectId}/tickets`, { params }));
   }
+  /** Only Contributors, Managers and Admins: the API refuses anyone else as an assignee. */
+  projectAssignees = (projectId: number) =>
+    firstValueFrom(this.http.get<UserOption[]>(`${this.base}/projects/${projectId}/assignees`));
   suggestions = (projectId: number) =>
     firstValueFrom(this.http.get<Suggestions>(`${this.base}/projects/${projectId}/suggestions`));
 

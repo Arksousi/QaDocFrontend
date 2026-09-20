@@ -29,7 +29,7 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
         <div>
           <h1>{{ project()?.projectName ?? 'Tickets' }}</h1>
           @if (project(); as p) {
-            <p class="muted"><span class="id-chip">{{ p.projectCode }}</span> · {{ p.openTicketCount }} open of {{ p.ticketCount }} tickets</p>
+            <p class="muted">{{ p.openTicketCount }} open of {{ p.ticketCount }} tickets</p>
           }
         </div>
       </div>
@@ -130,8 +130,13 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
                       {{ t.title }}
                       @if (t.commentCount) { <span class="muted small" [title]="t.commentCount + ' comment(s)'">💬 {{ t.commentCount }}</span> }
                     </td>
-                    <td class="nowrap">
-                      @if (t.assignedToName) { <span class="person"><span class="avatar avatar-sm" aria-hidden="true">{{ initialsOf(t.assignedToName) }}</span>{{ t.assignedToName }}</span> } @else { <span class="muted">Unassigned</span> }
+                    <td class="col-assignee">
+                      @if (t.assignedToName) {
+                        <span class="person" [title]="t.assignedToName">
+                          <span class="avatar avatar-sm" aria-hidden="true">{{ initialsOf(t.assignedToName) }}</span>
+                          <span class="person-name">{{ t.assignedToName }}</span>
+                        </span>
+                      } @else { <span class="muted">Unassigned</span> }
                     </td>
                     <td><span class="state state-{{ slugOf(t.state) }}">{{ t.state }}</span></td>
                     <td>
@@ -139,7 +144,7 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
                         @for (tag of t.tags; track tag) { <span class="tag">{{ tag }}</span> }
                       </span>
                     </td>
-                    <td class="nowrap muted">{{ t.activityDate | date: 'MMMM d, y, h:mm a' }}</td>
+                    <td class="nowrap muted">{{ t.activityDate | date: 'd MMM, h:mm a' }}</td>
                   </tr>
                 }
               </tbody>
@@ -238,7 +243,7 @@ export class TicketViewerPage {
     { key: 'ticketType', label: 'Type', cls: 'col-fit' },
     { key: 'ticketId', label: 'ID', cls: 'col-fit' },
     { key: 'title', label: 'Title', cls: 'col-grow' },
-    { key: 'assignedToName', label: 'Assigned To', cls: 'col-fit' },
+    { key: 'assignedToName', label: 'Assigned To', cls: 'col-assignee' },
     { key: 'state', label: 'State', cls: 'col-fit' },
     { key: 'tags', label: 'Tag', cls: 'col-tags' },
     { key: 'activityDate', label: 'Activity Date', cls: 'col-fit' },
@@ -372,7 +377,7 @@ export class TicketViewerPage {
   }
 
   private async loadProject(id: number) {
-    const [project, suggestions, users] = await Promise.all([this.api.project(id), this.api.suggestions(id), this.api.userOptions()]);
+    const [project, suggestions, users] = await Promise.all([this.api.project(id), this.api.suggestions(id), this.api.projectAssignees(id)]);
     this.project.set(project);
     this.suggestions.set(suggestions);
     this.users.set(users);

@@ -90,7 +90,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .crumbs { display: flex; gap: 8px; align-items: center; color: var(--muted); min-width: 0; }
 .crumb-current { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
-.page { max-width: 1280px; margin: 0 auto; padding: 24px 32px 48px; }
+.page { max-width: 1440px; margin: 0 auto; padding: 24px 32px 48px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
 .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0; }
 
@@ -117,7 +117,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 
 /* ---------- Folder rail (Project - Folder - Ticket) ---------- */
 .folder-layout { display: flex; align-items: flex-start; gap: 16px; }
-.folder-rail { flex: 0 0 220px; display: flex; flex-direction: column; gap: 2px; padding: 12px; }
+.folder-rail { flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; padding: 12px; }
 .folder-rail .section-title { margin-bottom: 6px; }
 .folder-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -151,7 +151,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .w-id { width: 72px; }
 .w-actions { width: 44px; padding-left: 0 !important; padding-right: 6px !important; text-align: right; }
 .row-menu { position: relative; display: inline-block; }
-.title-cell { font-weight: 500; min-width: 220px; overflow-wrap: anywhere; }
+.title-cell { font-weight: 500; min-width: 320px; overflow-wrap: anywhere; }
+/* The assignee is a fixed, narrow track: long names ellipsize rather than push the title out. */
+.col-assignee { width: 1%; max-width: 160px; white-space: nowrap; }
+.col-assignee .person { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.col-assignee .person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* width:100% on a column of an auto-layout table makes it absorb all spare width, while
    width:1% + nowrap shrinks a column to exactly its content. */
 .col-grow { width: 100%; }
@@ -251,8 +255,8 @@ select.state-select { font-weight: 600; }
 
 /* ---------- Modal & toasts ---------- */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(9,30,66,.54); display: grid; place-items: center; z-index: 100; padding: 16px; }
-.modal { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-lg); width: 100%; max-width: 520px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
-.modal-wide { max-width: 780px; }
+.modal { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-lg); width: 100%; max-width: 600px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal-wide { max-width: 980px; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px 8px; }
 .modal-header h2 { margin: 0; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-body { padding: 8px 20px 16px; overflow: auto; }
