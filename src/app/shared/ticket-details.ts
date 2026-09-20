@@ -3,7 +3,7 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, Ticket, UserOption, initials, slug } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, UserOption, initials, slug } from '../core/models';
 import { ToastService } from '../core/toast.service';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
@@ -28,6 +28,19 @@ import { TagInput } from './tag-input';
               <span class="detail-label">Title *</span>
               <input name="title" [(ngModel)]="form.title" required maxlength="200" [readonly]="!canEdit()" (ngModelChange)="touch()" />
             </label>
+
+            <label class="detail">
+              <span class="detail-label">Type</span>
+              <select name="ticketType" [(ngModel)]="form.ticketType" [disabled]="!canEdit()" (ngModelChange)="touch()">
+                @for (tt of types; track tt) { <option [value]="tt">{{ tt }}</option> }
+              </select>
+            </label>
+            <div class="detail">
+              <span class="detail-label">Assigned By</span>
+              <span class="detail-value">
+                @if (t.assignedByName) { {{ t.assignedByName }} } @else { <span class="muted">—</span> }
+              </span>
+            </div>
 
             <label class="detail">
               <span class="detail-label">Assigned To</span>
@@ -187,6 +200,7 @@ export class TicketDetails {
   readonly states = STATES;
   readonly priorities = PRIORITIES;
   readonly impacts = IMPACTS;
+  readonly types = TICKET_TYPES;
   readonly slugOf = slug;
   readonly initialsOf = initials;
 
@@ -284,13 +298,14 @@ export class TicketDetails {
 }
 
 function emptyForm(): SaveTicket {
-  return { folderId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  return { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 }
 
 function toForm(t: Ticket): SaveTicket {
   return normalise({
     folderId: t.folderId,
     title: t.title,
+    ticketType: t.ticketType,
     description: toRichText(t.description),
     assignedToUserId: t.assignedToUserId,
     state: t.state,
@@ -305,6 +320,7 @@ function normalise(f: SaveTicket): SaveTicket {
   return {
     folderId: f.folderId,
     title: f.title.trim(),
+    ticketType: f.ticketType,
     description: (f.description ?? '').trimEnd(),
     assignedToUserId: f.assignedToUserId ?? null,
     state: f.state,

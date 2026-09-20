@@ -365,3 +365,10 @@ select.state-select { font-weight: 600; }
 .folder-del:hover:not(:disabled) { color: var(--danger); background: #fbe9e7; }
 .folder-del:disabled { opacity: 0; cursor: not-allowed; }
 .folder-row:hover .folder-del:disabled { opacity: .35; }
+
+/* ---------- Ticket type glyph ---------- */
+.type-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+/* The word rides with the glyph: colour alone would not tell the two apart. */
+.type-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+.type-chip.type-bug { color: var(--danger); }
+.type-chip.type-enhancement { color: var(--primary); }

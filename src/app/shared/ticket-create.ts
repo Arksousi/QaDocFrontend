@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, UserOption } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, UserOption } from '../core/models';
 import { ToastService } from '../core/toast.service';
 import { Modal } from './modal';
 import { RichText } from './rich-text';
@@ -39,6 +39,11 @@ import { TagInput } from './tag-input';
               @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
             </select>
           </label>
+          <label>Type
+            <select name="ticketType" [(ngModel)]="draft.ticketType">
+              @for (t of types; track t) { <option [value]="t">{{ t }}</option> }
+            </select>
+          </label>
         </div>
         <div class="field">
           <label for="create-tags">Tag</label>
@@ -74,8 +79,9 @@ export class TicketCreate {
   readonly states = STATES;
   readonly priorities = PRIORITIES;
   readonly impacts = IMPACTS;
+  readonly types = TICKET_TYPES;
 
-  draft: SaveTicket = { folderId: 0, title: '', description: '', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  draft: SaveTicket = { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 
   async save() {
     if (!this.draft.title.trim() || this.saving()) return;

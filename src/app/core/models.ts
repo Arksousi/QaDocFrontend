@@ -2,6 +2,8 @@ export const STATES = ['Open', 'In Progress', 'Resolved', 'Retest', 'Closed'] as
 /** Ordered least to most severe; Showstopper sits above Critical. */
 export const IMPACTS = ['Low', 'Medium', 'High', 'Critical', 'Showstopper'] as const;
 export const ROLES = ['Admin', 'Member'] as const;
+/** What kind of work a ticket represents. */
+export const TICKET_TYPES = ['Bug', 'Enhancement'] as const;
 /** Per-project access, ordered least to most capable. */
 export const PROJECT_ROLES = ['Viewer', 'Contributor', 'Manager'] as const;
 export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] as const;
@@ -9,6 +11,7 @@ export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 
 export type TicketState = (typeof STATES)[number];
 export type Impact = (typeof IMPACTS)[number];
 export type Role = (typeof ROLES)[number];
+export type TicketType = (typeof TICKET_TYPES)[number];
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 /** What a role lets you do, so the UI can hide what the API would refuse. */
@@ -122,8 +125,11 @@ export interface Ticket {
   folderCode: string;
   title: string;
   description: string | null;
+  ticketType: TicketType;
   assignedToUserId: number | null;
   assignedToName: string | null;
+  /** Who gave it to the current assignee; null while unassigned. */
+  assignedByName: string | null;
   state: TicketState;
   priority: number;
   impact: Impact;
@@ -143,6 +149,7 @@ export interface SaveTicket {
   folderId: number;
   title: string;
   description: string;
+  ticketType: TicketType;
   assignedToUserId: number | null;
   state: TicketState;
   priority: number;

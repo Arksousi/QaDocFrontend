@@ -12,6 +12,7 @@ export interface TicketFilters {
   folderId?: number | null;
   search?: string;
   state?: string;
+  type?: string;
   tag?: string;
   assignedTo?: number | null;
 }

@@ -3,19 +3,20 @@ import { Component, computed, effect, inject, input, numberAttribute, signal } f
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { Folder, Project, STATES, Suggestions, Ticket, UserOption, canEditTickets, canManageMembers, initials, slug } from '../../core/models';
+import { Folder, Project, STATES, Suggestions, TICKET_TYPES, Ticket, UserOption, canEditTickets, canManageMembers, initials, slug } from '../../core/models';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { TicketCreate } from '../../shared/ticket-create';
 import { TicketDetails } from '../../shared/ticket-details';
 import { Modal } from '../../shared/modal';
+import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
 
-type SortKey = 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'activityDate';
+type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'activityDate';
 
 @Component({
   selector: 'app-ticket-viewer',
-  imports: [FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal],
+  imports: [FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon],
   template: `
     <app-topbar [crumb]="project()?.projectName ?? null">
       @if (canEdit()) {
@@ -70,6 +71,10 @@ type SortKey = 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'act
             <option value="">All states</option>
             @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
           </select>
+          <select [ngModel]="type()" (ngModelChange)="type.set($event)" aria-label="Filter by type">
+            <option value="">All types</option>
+            @for (t of ticketTypes; track t) { <option [value]="t">{{ t }}</option> }
+          </select>
           <select [ngModel]="tag()" (ngModelChange)="tag.set($event)" aria-label="Filter by tag">
             <option value="">All tags</option>
             @for (t of suggestions().tags; track t) { <option [value]="t">{{ t }}</option> }
@@ -77,7 +82,7 @@ type SortKey = 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'act
           <label class="check">
             <input type="checkbox" [ngModel]="mine()" (ngModelChange)="mine.set($event)" /> Assigned to me
           </label>
-          @if (search() || state() || tag() || mine()) {
+          @if (search() || state() || type() || tag() || mine()) {
             <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear filters</button>
           }
           <span class="muted small push-left">{{ tickets().length }} ticket(s)</span>
@@ -87,7 +92,7 @@ type SortKey = 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'act
           <p class="muted pad">Loading…</p>
         } @else if (tickets().length === 0) {
           <div class="empty">
-            @if (search() || state() || tag() || mine()) {
+            @if (search() || state() || type() || tag() || mine()) {
               <h2>No tickets match these filters</h2>
               <button class="btn btn-ghost" (click)="clearFilters()">Clear filters</button>
             } @else {
@@ -113,6 +118,11 @@ type SortKey = 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'act
               <tbody>
                 @for (t of sorted(); track t.ticketId) {
                   <tr class="clickable" [class.row-selected]="t.ticketId === ticket()" (click)="openTicket(t.ticketId)">
+                    <td class="nowrap">
+                      <span class="type-chip type-{{ slugOf(t.ticketType) }}">
+                        <app-type-icon [type]="t.ticketType" />{{ t.ticketType }}
+                      </span>
+                    </td>
                     <td class="mono nowrap">
                       <a [href]="'/projects/' + projectId() + '?ticket=' + t.ticketId" (click)="$event.preventDefault()">{{ t.ticketKey }}</a>
                     </td>
@@ -213,16 +223,19 @@ export class TicketViewerPage {
 
   readonly search = signal('');
   readonly state = signal('');
+  readonly type = signal('');
   readonly tag = signal('');
   readonly mine = signal(false);
   readonly sortKey = signal<SortKey>('activityDate');
   readonly sortAsc = signal(false);
 
   readonly states = STATES;
+  readonly ticketTypes = TICKET_TYPES;
   readonly slugOf = slug;
   readonly initialsOf = initials;
   readonly columns: { key: SortKey; label: string; cls: string }[] = [
     // Title takes whatever width is left; every other column shrinks to its content.
+    { key: 'ticketType', label: 'Type', cls: 'col-fit' },
     { key: 'ticketId', label: 'ID', cls: 'col-fit' },
     { key: 'title', label: 'Title', cls: 'col-grow' },
     { key: 'assignedToName', label: 'Assigned To', cls: 'col-fit' },
@@ -252,10 +265,10 @@ export class TicketViewerPage {
       this.loadFolders(id);
     });
     effect(() => {
-      const [id, folderId, search, state, tag, mine] =
-        [this.projectId(), this.folderId(), this.search(), this.state(), this.tag(), this.mine()];
+      const [id, folderId, search, state, type, tag, mine] =
+        [this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine()];
       clearTimeout(this.searchTimer);
-      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, state, tag, mine), search ? 250 : 0);
+      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, state, type, tag, mine), search ? 250 : 0);
     });
   }
 
@@ -333,6 +346,7 @@ export class TicketViewerPage {
   clearFilters() {
     this.search.set('');
     this.state.set('');
+    this.type.set('');
     this.tag.set('');
     this.mine.set(false);
   }
@@ -350,7 +364,7 @@ export class TicketViewerPage {
   refresh() {
     this.loadProject(this.projectId());
     this.loadFolders(this.projectId());
-    this.loadTickets(this.projectId(), this.folderId(), this.search(), this.state(), this.tag(), this.mine());
+    this.loadTickets(this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine());
   }
 
   private async loadFolders(id: number) {
@@ -364,10 +378,10 @@ export class TicketViewerPage {
     this.users.set(users);
   }
 
-  private async loadTickets(id: number, folderId: number | null, search: string, state: string, tag: string, mine: boolean) {
+  private async loadTickets(id: number, folderId: number | null, search: string, state: string, type: string, tag: string, mine: boolean) {
     try {
       const assignedTo = mine ? this.auth.user()?.userId : null;
-      this.tickets.set(await this.api.tickets(id, { folderId, search, state, tag, assignedTo }));
+      this.tickets.set(await this.api.tickets(id, { folderId, search, state, type, tag, assignedTo }));
     } finally {
       this.loading.set(false);
     }
