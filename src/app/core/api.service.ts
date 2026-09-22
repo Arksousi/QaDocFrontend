@@ -11,11 +11,17 @@ interface Created {
 export interface TicketFilters {
   folderId?: number | null;
   search?: string;
-  state?: string;
-  type?: string;
-  tag?: string;
+  /** Any of these states; empty means every state. Sent as a repeated "state" parameter. */
+  states?: string[];
+  /** Any of these types; empty means every type. */
+  types?: string[];
+  /** A ticket carrying any one of these tags matches; empty means every tag. */
+  tags?: string[];
   assignedTo?: number | null;
 }
+
+/** The API names its repeatable filters in the singular: ?state=Open&state=Retest. */
+const REPEATED_AS: Record<string, string> = { states: 'state', types: 'type', tags: 'tag' };
 
 /** Thin promise-based wrapper over the QaDoc REST API. Errors are surfaced globally by the error interceptor. */
 @Injectable({ providedIn: 'root' })
@@ -43,6 +49,11 @@ export class ApiService {
   /** Admin only. Cascades: every ticket in the project goes with it. */
   deleteProject = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/projects/${id}`));
 
+  // Sample data for the guest tour. Admin only: these projects are hidden from every normal list.
+  demoProjects = () => firstValueFrom(this.http.get<Project[]>(`${this.base}/projects/demo`));
+  setProjectDemo = (id: number, isDemo: boolean) =>
+    firstValueFrom(this.http.put<void>(`${this.base}/projects/${id}/demo`, { isDemo }));
+
   // Project members (Admins anywhere; Managers on their own project)
   projectMembers = (id: number) =>
     firstValueFrom(this.http.get<ProjectMember[]>(`${this.base}/projects/${id}/members`));
@@ -55,7 +66,12 @@ export class ApiService {
   tickets(projectId: number, filters: TicketFilters) {
     let params = new HttpParams();
     for (const [key, value] of Object.entries(filters)) {
-      if (value !== null && value !== undefined && value !== '') params = params.set(key, String(value));
+      // A set goes out as one repeated parameter, which is what the API binds to.
+      if (Array.isArray(value)) {
+        for (const item of value) params = params.append(REPEATED_AS[key] ?? key, item);
+      } else if (value !== null && value !== undefined && value !== '') {
+        params = params.set(key, String(value));
+      }
     }
     return firstValueFrom(this.http.get<Ticket[]>(`${this.base}/projects/${projectId}/tickets`, { params }));
   }

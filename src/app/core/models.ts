@@ -1,9 +1,10 @@
 export const STATES = ['Open', 'In Progress', 'Resolved', 'Retest', 'Closed'] as const;
 /** Ordered least to most severe; Showstopper sits above Critical. */
 export const IMPACTS = ['Low', 'Medium', 'High', 'Critical', 'Showstopper'] as const;
-export const ROLES = ['Admin', 'Member'] as const;
+/** What someone is across the app. Only Admin grants anything on its own; see PROJECT_ROLES. */
+export const ROLES = ['Admin', 'Developer', 'Tester'] as const;
 /** What kind of work a ticket represents. */
-export const TICKET_TYPES = ['Bug', 'Enhancement'] as const;
+export const TICKET_TYPES = ['Bug', 'Enhancement', 'Issue'] as const;
 /** Per-project access, ordered least to most capable. */
 export const PROJECT_ROLES = ['Viewer', 'Contributor', 'Manager'] as const;
 export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] as const;
@@ -30,6 +31,8 @@ export interface User {
   displayName: string;
   role: Role;
   isActive: boolean;
+  /** True on a guest tour: sample data only, and every write is refused by the API. */
+  isGuest?: boolean;
   createdAt: string;
 }
 

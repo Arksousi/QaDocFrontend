@@ -18,7 +18,9 @@ export class AuthService {
   private readonly base = `${environment.apiUrl}/auth`;
 
   readonly user = signal<User | null>(null);
-  readonly isAdmin = computed(() => this.user()?.role === 'Admin');
+  readonly isAdmin = computed(() => this.user()?.role === 'Admin' && !this.isGuest());
+  /** A "Continue as a guest" tour: the demo projects, read-only. The API enforces both. */
+  readonly isGuest = computed(() => this.user()?.isGuest === true);
   private token: string | null = readToken();
 
   getToken() {
@@ -39,6 +41,11 @@ export class AuthService {
 
   async login(username: string, password: string) {
     this.accept(await firstValueFrom(this.http.post<LoginResponse>(`${this.base}/login`, { username, password })));
+  }
+
+  /** Starts a read-only tour of the sample projects. No account, nothing stored server-side. */
+  async continueAsGuest() {
+    this.accept(await firstValueFrom(this.http.post<LoginResponse>(`${this.base}/guest`, {})));
   }
 
   async setup(username: string, displayName: string, password: string) {

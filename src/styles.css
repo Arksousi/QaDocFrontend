@@ -87,8 +87,35 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none !important; }
 .brand-logo { display: block; height: 64px; width: auto; }
-.crumbs { display: flex; gap: 8px; align-items: center; color: var(--muted); min-width: 0; }
-.crumb-current { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* One quiet control in the bar: a way back, nothing competing with the page title below. */
+.back-link {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 10px;
+  border: 1px solid var(--border); border-radius: 20px;
+  font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none !important;
+  white-space: nowrap; transition: color .12s, border-color .12s, background .12s;
+}
+.back-link:hover { color: var(--primary); border-color: #a9c4ee; background: var(--primary-soft); }
+.back-arrow { font-size: 14px; line-height: 1; }
+
+/*
+ * The project's identity, stated once and given room: the code set apart on the left as the
+ * key prefix it is, the name at full size, the counts quiet underneath.
+ */
+.project-head { display: flex; align-items: center; gap: 14px; margin: 4px 0 22px; }
+.project-code {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 54px; height: 38px; padding: 0 12px;
+  background: var(--primary-soft); color: var(--primary);
+  border-radius: 10px; font-size: 13px; font-weight: 700; letter-spacing: .6px;
+}
+.project-titles { min-width: 0; }
+.project-head h1 {
+  margin: 0; font-size: 25px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.project-note { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+.project-note strong { color: var(--text); font-weight: 600; }
+.project-note-sep { margin: 0 5px; color: #c1c7d0; }
 .topbar-actions { margin-left: auto; display: flex; gap: 8px; }
 .page { max-width: 1440px; margin: 0 auto; padding: 24px 32px 48px; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -100,6 +127,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .empty .btn { margin-top: 8px; }
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .toolbar select { width: auto; min-width: 140px; }
+/* One row, one height. The form inputs size themselves from padding and line-height, which
+   lands ~3px above the fixed 34px of .filter-button and .btn beside them — small, but it reads
+   as a step in the row. The vertical padding goes with it: left in place it fights the height on
+   a shrink, and the text is centred by the line box anyway. font-size matches the buttons' 13px,
+   or the search box reads as the larger control even at an identical height. Pinned to .toolbar
+   rather than the global input rule, which every form in the app sizes itself from. */
+.toolbar input, .toolbar select, .toolbar .filter-button {
+  height: 34px; padding-top: 0; padding-bottom: 0; font-size: 13px;
+}
+.toolbar .check input { height: auto; }
 .search { max-width: 320px; }
 
 /* ---------- Project Menu ---------- */
@@ -148,6 +185,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .row-selected { background: var(--primary-soft) !important; }
 .clickable { cursor: pointer; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Beats `.table th`, so a count sits directly under its own heading. */
+.table th.num { text-align: right; width: 110px; }
 .w-id { width: 72px; }
 .w-actions { width: 44px; padding-left: 0 !important; padding-right: 6px !important; text-align: right; }
 .row-menu { position: relative; display: inline-block; }
@@ -165,14 +204,61 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .th-sort:hover { color: var(--text); }
 .sort-arrow { font-size: 9px; width: 8px; }
 
+/* ---------- Multi-select filter ---------- */
+/* Reads as a <select>, but opens a list of checkboxes so several values can be ticked at once.
+   State, type and tag in the Ticket Viewer toolbar all use it, hence the shared min-width: the
+   three sit in a row and would otherwise each size to their own label. */
+.filter-menu { position: relative; display: inline-block; }
+.filter-button {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 34px; padding: 0 10px; min-width: 140px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  font: inherit; font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap;
+}
+.filter-button:hover { border-color: #a9c4ee; }
+.filter-button.active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.filter-caret { font-size: 10px; color: var(--muted); }
+.filter-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 190px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgb(9 30 66 / 18%); padding: 6px;
+}
+/* A project accumulates tags without limit, so that panel scrolls rather than running off-screen. */
+.filter-panel-scroll { max-height: 300px; overflow-y: auto; max-width: 280px; }
+.filter-option { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.filter-option:hover { background: var(--surface-2); }
+/* width:auto and flex:none, or the global full-width input rule stretches the box and every
+   row's label lands at a different offset. */
+.filter-option input { width: auto; flex: none; margin: 0; cursor: pointer; }
+.filter-clear {
+  width: 100%; margin-top: 4px; padding: 6px 8px; border: 0; border-top: 1px solid var(--border);
+  background: none; font: inherit; font-size: 12px; color: var(--muted); text-align: left; cursor: pointer;
+}
+.filter-clear:hover { color: var(--primary); }
+.filter-empty { margin: 0; padding: 6px 8px; }
+
 /* ---------- State & tags ---------- */
 .state { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
-.state-open { background: #ebecf0; color: #44546f; }
-.state-in-progress { background: #e9f2ff; color: #0055cc; }
-.state-resolved { background: #dcfff1; color: #216e4e; }
-.state-retest { background: #f3f0ff; color: #5e4db2; }
-.state-closed { background: #172b4d; color: #fff; }
+/*
+ * The five states read as one journey: grey to do, then three shades of blue for work in
+ * flight — standard while it is being worked, lighter while it waits for confirmation, darker
+ * while it is being re-tested — and green for done. Shade alone carries the progress, so the
+ * three blues must stay ordered light-to-dark in that sequence.
+ */
+.state-open { background: #ebecf0; color: #44546f; }         /* To Do */
+.state-in-progress { background: #0c66e4; color: #fff; }     /* In Progress */
+.state-resolved { background: #cce0ff; color: #0055cc; }     /* awaiting confirmation */
+.state-retest { background: #003884; color: #fff; }          /* being re-tested */
+.state-closed { background: #216e4e; color: #fff; }          /* Done */
+
+/* The same colours as text, for the State dropdown: a coloured background on a <select>
+   would repaint every row of the open list, which hides the difference instead of showing it. */
 select.state-select { font-weight: 600; }
+.state-text-open { color: #44546f; }
+.state-text-in-progress { color: #0c66e4; }
+.state-text-resolved { color: #0055cc; }
+.state-text-retest { color: #003884; }
+.state-text-closed { color: #216e4e; }
 
 .tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .tag { display: inline-flex; align-items: center; gap: 2px; background: #ebecf0; color: var(--text-2); border-radius: 4px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
@@ -260,7 +346,9 @@ select.state-select { font-weight: 600; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px 8px; }
 .modal-header h2 { margin: 0; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-body { padding: 8px 20px 16px; overflow: auto; }
-.modal-footer { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
+.modal-footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
+/* Pushed to the far left so the buttons stay grouped on the right. */
+.modal-footer .footer-note { margin-right: auto; }
 /* ---------- Picture viewer ---------- */
 /* Above .modal-backdrop (z-index 100) so it covers the ticket dialog it opens from. */
 .viewer { position: fixed; inset: 0; z-index: 200; background: rgba(68,68,68,.86); display: grid; place-items: center; overflow: hidden; }
@@ -293,6 +381,9 @@ select.state-select { font-weight: 600; }
   .details-grid { grid-template-columns: 1fr; }
   .search { max-width: none; }
   .toolbar select { flex: 1; }
+  /* min-width would otherwise push the third filter off a narrow row. */
+  .toolbar .filter-menu { flex: 1; }
+  .toolbar .filter-button { min-width: 0; width: 100%; }
 }
 
 /* ---------- Auth ---------- */
@@ -302,6 +393,17 @@ select.state-select { font-weight: 600; }
 .auth-card .form { margin-top: 14px; }
 .auth-brand .brand-logo { height: 120px; margin: 0 auto; }
 .auth-help { margin: 16px 0 0; text-align: center; }
+/* A rule with the word "or" sitting in a gap in the middle of it. */
+.auth-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; color: var(--muted); font-size: 12px; }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+
+/* ---------- Guest tour ---------- */
+.guest-bar {
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 16px; font-size: 13px;
+  background: #fff7e6; color: #7a4f01; border-bottom: 1px solid #f5d9a0;
+}
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); text-decoration: underline; cursor: pointer; }
 .btn-block { width: 100%; height: 38px; }
 .field-error { color: var(--danger); font-size: 12px; margin: -6px 0 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -323,7 +425,8 @@ select.state-select { font-weight: 600; }
 .avatar-sm { width: 22px; height: 22px; font-size: 9px; }
 .role { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
 .role-admin { background: #f3f0ff; color: #5e4db2; }
-.role-member { background: #ebecf0; color: #44546f; }
+.role-developer { background: #e9f2ff; color: #0c66e4; }
+.role-tester { background: #e3fcef; color: #216e4e; }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a5adba; margin-right: 4px; }
 .status-dot.active { background: #22a06b; }
 .row-inactive td { color: var(--muted); }
@@ -371,8 +474,22 @@ select.state-select { font-weight: 600; }
 .folder-row:hover .folder-del:disabled { opacity: .35; }
 
 /* ---------- Ticket type glyph ---------- */
-.type-icon { width: 15px; height: 15px; flex: 0 0 auto; }
+.type-icon { width: 17px; height: 17px; flex: 0 0 auto; }
 /* The word rides with the glyph: colour alone would not tell the two apart. */
 .type-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
-.type-chip.type-bug { color: var(--danger); }
-.type-chip.type-enhancement { color: var(--primary); }
+.type-chip.type-bug { color: #de350b; }
+.type-chip.type-enhancement { color: #ffab00; }
+.type-chip.type-issue { color: #5243aa; }
+/* The list shows the glyph alone, so the column only needs to be as wide as one icon. */
+/*
+ * Type and ID hug the left edge — left-aligned and with their inner padding trimmed — so the
+ * space they were holding goes to the Title, which is the column people actually read.
+ * Written as `.table th/td` to outrank the table's own 9px 10px padding.
+ */
+.table th.col-type, .table td.col-type {
+  width: 1%; white-space: nowrap; text-align: left; padding-left: 12px; padding-right: 2px;
+}
+.table th.col-id, .table td.col-id {
+  width: 1%; white-space: nowrap; padding-left: 4px; padding-right: 12px;
+}
+.col-type .type-chip { gap: 0; }

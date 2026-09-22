@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
+import { Component, HostListener, WritableSignal, computed, effect, inject, input, numberAttribute, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -13,6 +13,11 @@ import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
 
 type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'activityDate';
+type FilterMenu = 'state' | 'type' | 'tag';
+
+/** "All tags" when nothing is ticked, the value itself when one is, a count beyond that. */
+const summarise = (picked: string[], plural: string) =>
+  picked.length === 0 ? `All ${plural}` : picked.length === 1 ? picked[0] : `${picked.length} ${plural}`;
 
 @Component({
   selector: 'app-ticket-viewer',
@@ -25,14 +30,19 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
     </app-topbar>
 
     <main class="page">
-      <div class="page-header">
-        <div>
-          <h1>{{ project()?.projectName ?? 'Tickets' }}</h1>
-          @if (project(); as p) {
-            <p class="muted">{{ p.openTicketCount }} open of {{ p.ticketCount }} tickets</p>
-          }
-        </div>
-      </div>
+      @if (project(); as p) {
+        <header class="project-head">
+          <span class="project-code">{{ p.projectCode }}</span>
+          <div class="project-titles">
+            <h1>{{ p.projectName }}</h1>
+            <p class="project-note">
+              <strong>{{ p.openTicketCount }}</strong> open
+              <span class="project-note-sep" aria-hidden="true">·</span>
+              {{ p.ticketCount }} total
+            </p>
+          </div>
+        </header>
+      }
 
       <div class="folder-layout">
       <nav class="folder-rail card" aria-label="Folders">
@@ -67,22 +77,76 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
         <div class="toolbar">
           <input class="search" type="search" placeholder="Search title, assignee or key (RMS-V1-0001)…" aria-label="Search tickets"
             [ngModel]="search()" (ngModelChange)="search.set($event)" />
-          <select [ngModel]="state()" (ngModelChange)="state.set($event)" aria-label="Filter by state">
-            <option value="">All states</option>
-            @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
-          </select>
-          <select [ngModel]="type()" (ngModelChange)="type.set($event)" aria-label="Filter by type">
-            <option value="">All types</option>
-            @for (t of ticketTypes; track t) { <option [value]="t">{{ t }}</option> }
-          </select>
-          <select [ngModel]="tag()" (ngModelChange)="tag.set($event)" aria-label="Filter by tag">
-            <option value="">All tags</option>
-            @for (t of suggestions().tags; track t) { <option [value]="t">{{ t }}</option> }
-          </select>
+          <!-- All three filters tick several values at once, so "everything still open", "bugs and
+               issues" or "any of these three tags" is one look rather than several. Nothing ticked
+               means no filter on that field, the same as the old "All states"/"All types" option. -->
+          <div class="filter-menu">
+            <button type="button" class="filter-button" (click)="toggleMenu('state')"
+              [class.active]="state().length > 0" [attr.aria-expanded]="openMenu() === 'state'" aria-haspopup="true">
+              <span>{{ stateLabel() }}</span>
+              <span class="filter-caret" aria-hidden="true">▾</span>
+            </button>
+            @if (openMenu() === 'state') {
+              <div class="filter-panel" role="group" aria-label="Filter by state">
+                @for (s of states; track s) {
+                  <label class="filter-option">
+                    <input type="checkbox" [checked]="state().includes(s)" (change)="toggleState(s)" />
+                    <span class="state state-{{ slugOf(s) }}">{{ s }}</span>
+                  </label>
+                }
+                @if (state().length > 0) {
+                  <button type="button" class="filter-clear" (click)="state.set([])">Clear</button>
+                }
+              </div>
+            }
+          </div>
+          <div class="filter-menu">
+            <button type="button" class="filter-button" (click)="toggleMenu('type')"
+              [class.active]="type().length > 0" [attr.aria-expanded]="openMenu() === 'type'" aria-haspopup="true">
+              <span>{{ typeLabel() }}</span>
+              <span class="filter-caret" aria-hidden="true">▾</span>
+            </button>
+            @if (openMenu() === 'type') {
+              <div class="filter-panel" role="group" aria-label="Filter by type">
+                @for (t of ticketTypes; track t) {
+                  <label class="filter-option">
+                    <input type="checkbox" [checked]="type().includes(t)" (change)="toggleType(t)" />
+                    <app-type-icon [type]="t" />
+                    <span>{{ t }}</span>
+                  </label>
+                }
+                @if (type().length > 0) {
+                  <button type="button" class="filter-clear" (click)="type.set([])">Clear</button>
+                }
+              </div>
+            }
+          </div>
+          <div class="filter-menu">
+            <button type="button" class="filter-button" (click)="toggleMenu('tag')"
+              [class.active]="tag().length > 0" [attr.aria-expanded]="openMenu() === 'tag'" aria-haspopup="true">
+              <span>{{ tagLabel() }}</span>
+              <span class="filter-caret" aria-hidden="true">▾</span>
+            </button>
+            @if (openMenu() === 'tag') {
+              <div class="filter-panel filter-panel-scroll" role="group" aria-label="Filter by tag">
+                @for (t of suggestions().tags; track t) {
+                  <label class="filter-option">
+                    <input type="checkbox" [checked]="tag().includes(t)" (change)="toggleTag(t)" />
+                    <span class="tag">{{ t }}</span>
+                  </label>
+                } @empty {
+                  <p class="muted small filter-empty">No tags used in this project yet.</p>
+                }
+                @if (tag().length > 0) {
+                  <button type="button" class="filter-clear" (click)="tag.set([])">Clear</button>
+                }
+              </div>
+            }
+          </div>
           <label class="check">
             <input type="checkbox" [ngModel]="mine()" (ngModelChange)="mine.set($event)" /> Assigned to me
           </label>
-          @if (search() || state() || type() || tag() || mine()) {
+          @if (hasFilters()) {
             <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear filters</button>
           }
           <span class="muted small push-left">{{ tickets().length }} ticket(s)</span>
@@ -92,7 +156,7 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
           <p class="muted pad">Loading…</p>
         } @else if (tickets().length === 0) {
           <div class="empty">
-            @if (search() || state() || type() || tag() || mine()) {
+            @if (hasFilters()) {
               <h2>No tickets match these filters</h2>
               <button class="btn btn-ghost" (click)="clearFilters()">Clear filters</button>
             } @else {
@@ -118,12 +182,14 @@ type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' 
               <tbody>
                 @for (t of sorted(); track t.ticketId) {
                   <tr class="clickable" [class.row-selected]="t.ticketId === ticket()" (click)="openTicket(t.ticketId)">
-                    <td class="nowrap">
-                      <span class="type-chip type-{{ slugOf(t.ticketType) }}">
-                        <app-type-icon [type]="t.ticketType" />{{ t.ticketType }}
+                    <td class="col-type">
+                      <!-- The glyph alone. Its aria-label and tooltip still name the type, so the
+                           column stays readable by hover and by screen reader. -->
+                      <span class="type-chip type-{{ slugOf(t.ticketType) }}" [title]="t.ticketType">
+                        <app-type-icon [type]="t.ticketType" />
                       </span>
                     </td>
-                    <td class="mono nowrap">
+                    <td class="mono col-id">
                       <a [href]="'/projects/' + projectId() + '?ticket=' + t.ticketId" (click)="$event.preventDefault()">{{ t.ticketKey }}</a>
                     </td>
                     <td class="title-cell">
@@ -227,10 +293,18 @@ export class TicketViewerPage {
   readonly creating = signal(false);
 
   readonly search = signal('');
-  readonly state = signal('');
-  readonly type = signal('');
-  readonly tag = signal('');
+  /** Ticked values. Empty means no filter at all on that field. */
+  readonly state = signal<string[]>([]);
+  readonly type = signal<string[]>([]);
+  readonly tag = signal<string[]>([]);
   readonly mine = signal(false);
+  /** At most one panel is open at a time, so picking a filter never buries the one beside it. */
+  readonly openMenu = signal<FilterMenu | null>(null);
+  readonly stateLabel = computed(() => summarise(this.state(), 'states'));
+  readonly typeLabel = computed(() => summarise(this.type(), 'types'));
+  readonly tagLabel = computed(() => summarise(this.tag(), 'tags'));
+  readonly hasFilters = computed(() =>
+    !!this.search() || this.state().length > 0 || this.type().length > 0 || this.tag().length > 0 || this.mine());
   readonly sortKey = signal<SortKey>('activityDate');
   readonly sortAsc = signal(false);
 
@@ -240,8 +314,8 @@ export class TicketViewerPage {
   readonly initialsOf = initials;
   readonly columns: { key: SortKey; label: string; cls: string }[] = [
     // Title takes whatever width is left; every other column shrinks to its content.
-    { key: 'ticketType', label: 'Type', cls: 'col-fit' },
-    { key: 'ticketId', label: 'ID', cls: 'col-fit' },
+    { key: 'ticketType', label: 'Type', cls: 'col-type' },
+    { key: 'ticketId', label: 'ID', cls: 'col-id' },
     { key: 'title', label: 'Title', cls: 'col-grow' },
     { key: 'assignedToName', label: 'Assigned To', cls: 'col-assignee' },
     { key: 'state', label: 'State', cls: 'col-fit' },
@@ -270,10 +344,10 @@ export class TicketViewerPage {
       this.loadFolders(id);
     });
     effect(() => {
-      const [id, folderId, search, state, type, tag, mine] =
+      const [id, folderId, search, states, types, tags, mine] =
         [this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine()];
       clearTimeout(this.searchTimer);
-      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, state, type, tag, mine), search ? 250 : 0);
+      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, states, types, tags, mine), search ? 250 : 0);
     });
   }
 
@@ -348,12 +422,51 @@ export class TicketViewerPage {
     }
   }
 
+  toggleMenu(menu: FilterMenu) {
+    this.openMenu.update((open) => (open === menu ? null : menu));
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    // A click on any filter button is handled by that button; anything else outside closes up.
+    const target = event.target;
+    const insideAMenu = target instanceof Element && target.closest('.filter-menu') !== null;
+    if (this.openMenu() && !insideAMenu) this.openMenu.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    this.openMenu.set(null);
+  }
+
+  /** Kept in STATES order however they were ticked, so the label reads in workflow order. */
+  toggleState(state: string) {
+    this.tick(this.state, STATES, state);
+  }
+
+  toggleType(type: string) {
+    this.tick(this.type, TICKET_TYPES, type);
+  }
+
+  toggleTag(tag: string) {
+    this.tick(this.tag, this.suggestions().tags, tag);
+  }
+
   clearFilters() {
     this.search.set('');
-    this.state.set('');
-    this.type.set('');
-    this.tag.set('');
+    this.state.set([]);
+    this.type.set([]);
+    this.tag.set([]);
     this.mine.set(false);
+    this.openMenu.set(null);
+  }
+
+  /** Ticked values are held in the panel's own order, so the button label reads the way the list does. */
+  private tick(picked: WritableSignal<string[]>, all: readonly string[], value: string) {
+    picked.update((current) =>
+      current.includes(value)
+        ? current.filter((v) => v !== value)
+        : all.filter((v) => v === value || current.includes(v)));
   }
 
   openTicket(id: number | null) {
@@ -383,10 +496,10 @@ export class TicketViewerPage {
     this.users.set(users);
   }
 
-  private async loadTickets(id: number, folderId: number | null, search: string, state: string, type: string, tag: string, mine: boolean) {
+  private async loadTickets(id: number, folderId: number | null, search: string, states: string[], types: string[], tags: string[], mine: boolean) {
     try {
       const assignedTo = mine ? this.auth.user()?.userId : null;
-      this.tickets.set(await this.api.tickets(id, { folderId, search, state, type, tag, assignedTo }));
+      this.tickets.set(await this.api.tickets(id, { folderId, search, states, types, tags, assignedTo }));
     } finally {
       this.loading.set(false);
     }

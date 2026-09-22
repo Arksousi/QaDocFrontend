@@ -95,7 +95,7 @@ interface UserDraft {
             <select name="role" [(ngModel)]="d.role">
               @for (r of roles; track r) { <option [value]="r">{{ r }}</option> }
             </select>
-            <small class="muted">{{ d.role === 'Admin' ? 'Can manage users and delete tickets.' : 'Can create and edit tickets, comment and add projects.' }}</small>
+            <small class="muted">{{ roleHint(d.role) }}</small>
           </label>
           @if (d.userId) {
             <label class="check">
@@ -155,7 +155,7 @@ export class UsersPage implements OnInit {
   }
 
   openAdd() {
-    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Member', isActive: true });
+    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Tester', isActive: true });
   }
 
   openEdit(u: User) {
@@ -165,6 +165,13 @@ export class UsersPage implements OnInit {
   openReset(u: User) {
     this.newPassword = '';
     this.resetting.set(u);
+  }
+
+  /** Developer and Tester differ only as a label: what either can do is set per project. */
+  roleHint(role: Role) {
+    return role === 'Admin'
+      ? 'Can manage users, and delete any project or ticket.'
+      : `Works on the projects they are added to; their access is set there. “${role}” says which side of QA they are on.`;
   }
 
   canSave(d: UserDraft) {

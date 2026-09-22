@@ -2,11 +2,12 @@ import { Component, OnInit, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { PeekPassword } from '../../shared/peek-password';
 
 /** Sign in, or, on a brand-new installation, create the first Admin account. */
 @Component({
   selector: 'app-login',
-  imports: [FormsModule],
+  imports: [FormsModule, PeekPassword],
   template: `
     <main class="auth-page">
       <div class="auth-card card">
@@ -25,10 +26,10 @@ import { AuthService } from '../../core/auth.service';
               <input name="username" [(ngModel)]="username" required minlength="3" maxlength="50" autocomplete="username" pattern="[A-Za-z0-9._\\-]+" placeholder="e.g. dana.lee" />
             </label>
             <label>Password * <small class="muted">at least 8 characters</small>
-              <input name="password" type="password" [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
+              <input name="password" appPeekPassword [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
             </label>
             <label>Confirm password *
-              <input name="confirm" type="password" [(ngModel)]="confirm" required autocomplete="new-password" />
+              <input name="confirm" appPeekPassword [(ngModel)]="confirm" required autocomplete="new-password" />
             </label>
             @if (confirm && password !== confirm) { <p class="field-error">Passwords do not match.</p> }
             <button class="btn btn-primary btn-block" type="submit"
@@ -43,11 +44,18 @@ import { AuthService } from '../../core/auth.service';
               <input name="username" [(ngModel)]="username" required autocomplete="username" autofocus />
             </label>
             <label>Password
-              <input name="password" type="password" [(ngModel)]="password" required autocomplete="current-password" />
+              <input name="password" appPeekPassword [(ngModel)]="password" required autocomplete="current-password" />
             </label>
             <button class="btn btn-primary btn-block" type="submit" [disabled]="busy() || !username.trim() || !password">Sign in</button>
           </form>
-          <p class="muted small auth-help">No account? Ask your QaDoc Admin to create one.</p>
+          <div class="auth-or"><span>or</span></div>
+          <button class="btn btn-ghost btn-block" type="button" [disabled]="busy()" (click)="continueAsGuest()">
+            Continue as a guest
+          </button>
+          <p class="muted small auth-help">
+            A guest tours sample projects and can't change anything.<br />
+            No account? Ask your QaDoc Admin to create one.
+          </p>
         }
       </div>
     </main>
@@ -82,6 +90,19 @@ export class LoginPage implements OnInit {
       this.goOn();
     } catch {
       this.password = '';
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async continueAsGuest() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    try {
+      await this.auth.continueAsGuest();
+      // Always the project list: a returnUrl from an expired session may point somewhere
+      // a guest cannot go, which would bounce straight back here.
+      this.router.navigateByUrl('/');
     } finally {
       this.busy.set(false);
     }

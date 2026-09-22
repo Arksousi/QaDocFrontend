@@ -15,7 +15,9 @@ import { ProjectMembers } from './project-members';
   imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers],
   template: `
     <app-topbar>
-      <button class="btn btn-primary" (click)="openAdd()">+ Add project</button>
+      @if (!auth.isGuest()) {
+        <button class="btn btn-primary" (click)="openAdd()">+ Add project</button>
+      }
     </app-topbar>
 
     <main class="page">
@@ -26,7 +28,11 @@ import { ProjectMembers } from './project-members';
       } @else if (projects().length === 0) {
         <div class="card empty">
           <h2>No projects yet</h2>
-          <p>Add a project to start tracking tickets.</p>
+          @if (auth.isAdmin()) {
+            <p>Add a project to start tracking tickets.</p>
+          } @else {
+            <p>Once someone adds you to a project, it will show up here.</p>
+          }
         </div>
       } @else {
         <section aria-labelledby="recent-heading">
@@ -37,7 +43,7 @@ import { ProjectMembers } from './project-members';
                 <a class="card recent-card" [routerLink]="['/projects', p.projectId]">
                   <span class="id-chip">{{ p.projectCode }}</span>
                   <h3>{{ p.projectName }}</h3>
-                  <p class="muted small">{{ p.openTicketCount }} open · {{ p.ticketCount }} total</p>
+                  <p class="muted small">{{ p.openTicketCount }} Opened Tickets of {{ p.ticketCount }}</p>
                   <p class="muted small">Last activity {{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</p>
                   @if (p.createdByName) { <p class="muted small">Created by {{ p.createdByName }}</p> }
                 </a>
@@ -99,6 +105,7 @@ import { ProjectMembers } from './project-members';
                               <button role="menuitem" (click)="openMembers(p)">Manage members…</button>
                             }
                             @if (auth.isAdmin()) {
+                              <button role="menuitem" (click)="setDemo(p, true)">Use as guest sample data</button>
                               <button role="menuitem" class="danger" (click)="askDelete(p)">Delete project…</button>
                             }
                           </div>
@@ -114,6 +121,7 @@ import { ProjectMembers } from './project-members';
           </div>
         </section>
       }
+
     </main>
 
     @if (adding()) {
@@ -204,6 +212,7 @@ export class ProjectMenuPage implements OnInit {
 
   readonly projects = signal<Project[]>([]);
   readonly recent = signal<Project[]>([]);
+  readonly busyDemo = signal(false);
   readonly loading = signal(true);
   readonly adding = signal(false);
   readonly saving = signal(false);
@@ -239,6 +248,30 @@ export class ProjectMenuPage implements OnInit {
       this.recent.set(recent);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  /**
+   * Hands a project over to the guest tour. It then disappears from every signed-in account,
+   * this page included, so it is confirmed first. Bringing one back is PUT {id}/demo with
+   * isDemo false — deliberately not offered here, to keep sample data out of a real workspace.
+   */
+  async setDemo(p: Project, isDemo: boolean) {
+    if (this.busyDemo()) return;
+    this.menuKey.set(null);
+    if (isDemo && !confirm(
+      `Show “${p.projectName}” to guests as sample data?\n\n`
+      + 'It will disappear from your projects until you move it back.')) return;
+
+    this.busyDemo.set(true);
+    try {
+      await this.api.setProjectDemo(p.projectId, isDemo);
+      this.toast.success(isDemo
+        ? `“${p.projectName}” is now guest sample data.`
+        : `“${p.projectName}” is back in your workspace.`);
+      await this.load();
+    } finally {
+      this.busyDemo.set(false);
     }
   }
 

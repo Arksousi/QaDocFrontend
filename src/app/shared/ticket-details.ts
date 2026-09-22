@@ -51,8 +51,9 @@ import { TagInput } from './tag-input';
             </label>
             <label class="detail">
               <span class="detail-label">State</span>
-              <select name="state" [(ngModel)]="form.state" [disabled]="!canEdit()" (ngModelChange)="touch()" class="state-select">
-                @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
+              <select name="state" [(ngModel)]="form.state" [disabled]="!canEdit()" (ngModelChange)="touch()"
+                class="state-select state-text-{{ slugOf(form.state) }}">
+                @for (s of states; track s) { <option [value]="s" class="state-text-{{ slugOf(s) }}">{{ s }}</option> }
               </select>
             </label>
             <label class="detail">
@@ -84,21 +85,23 @@ import { TagInput } from './tag-input';
             Created by {{ t.createdByName ?? 'unknown' }} on {{ t.createdAt | date: 'MMMM d, y, h:mm a' }}
             @if (t.updatedByName) { · Last updated by {{ t.updatedByName }} }
           </p>
-          <div class="box-actions">
-            @if (auth.isAdmin()) {
-              <button type="button" class="btn btn-ghost danger" (click)="remove()">Delete ticket</button>
-            }
-            <span class="grow"></span>
-            @if (canEdit()) {
-              @if (dirty()) {
-                <span class="muted small">Unsaved changes</span>
-                <button type="button" class="btn btn-ghost" (click)="reset()">Discard</button>
+          <!-- Saving lives in the modal footer, beside Close, so it is reachable without
+               scrolling back up. What is left here is deletion and the read-only notes. -->
+          @if (auth.isAdmin() || !canEdit()) {
+            <div class="box-actions">
+              @if (auth.isAdmin()) {
+                <button type="button" class="btn btn-ghost danger" (click)="remove()">Delete ticket</button>
               }
-              <button type="submit" form="ticketDetailsForm" class="btn btn-primary" [disabled]="!dirty() || saving() || !form.title.trim()">Save changes</button>
-            } @else {
-              <span class="muted small">You have read-only access to this project. You can still comment.</span>
-            }
-          </div>
+              <span class="grow"></span>
+              @if (!canEdit()) {
+                @if (auth.isGuest()) {
+                  <span class="muted small">This is sample data. Sign in to your own workspace to file tickets.</span>
+                } @else {
+                  <span class="muted small">You have read-only access to this project. You can still comment.</span>
+                }
+              }
+            </div>
+          }
         </section>
 
         <div class="tabs" role="tablist">
@@ -127,6 +130,7 @@ import { TagInput } from './tag-input';
               <p class="muted small">No comments yet.</p>
             }
 
+            @if (!auth.isGuest()) {
             <form class="comment-form" (ngSubmit)="postComment()">
               <div class="comment-compose">
                 <span class="avatar" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
@@ -138,6 +142,7 @@ import { TagInput } from './tag-input';
                 <button type="submit" class="btn btn-primary push-left" [disabled]="posting() || !commentText.trim()">Comment</button>
               </div>
             </form>
+            }
           </section>
         } @else {
           <section class="history" role="tabpanel" aria-label="History">
@@ -171,7 +176,18 @@ import { TagInput } from './tag-input';
         <p class="muted">Loading…</p>
       }
       <ng-container modal-actions>
-        <button class="btn btn-ghost" (click)="close()">Close</button>
+        <!-- Edited: the only two choices are to keep the work or throw it away. Untouched:
+             there is nothing to decide, so just a way out. The header × and Escape still work
+             either way, and both ask first while there are unsaved changes. -->
+        @if (canEdit() && dirty()) {
+          <span class="muted small footer-note">Unsaved changes</span>
+          <button type="button" class="btn btn-ghost" (click)="reset()">Discard</button>
+          <!-- Outside the <form>, tied to it by id: the HTML form attribute submits it from here. -->
+          <button type="submit" form="ticketDetailsForm" class="btn btn-primary"
+            [disabled]="saving() || !form.title.trim()">Save changes</button>
+        } @else {
+          <button class="btn btn-ghost" (click)="close()">Close</button>
+        }
       </ng-container>
     </app-modal>
   `,

@@ -10,12 +10,13 @@ import { ChangePassword } from './change-password';
   template: `
     <header class="topbar">
       <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc"><img class="brand-logo" src="logo.svg" alt="" /></a>
+      <!-- Only a way back. The page below states what you are looking at, once, in full size —
+           repeating it up here is what made this bar look cluttered. -->
       @if (crumb()) {
-        <nav class="crumbs" aria-label="Breadcrumb">
-          <a routerLink="/">Projects</a>
-          <span aria-hidden="true">/</span>
-          <span class="crumb-current">{{ crumb() }}</span>
-        </nav>
+        <a class="back-link" routerLink="/">
+          <span class="back-arrow" aria-hidden="true">←</span>
+          <span>Projects</span>
+        </a>
       }
       <div class="topbar-actions">
         <ng-content />
@@ -30,20 +31,31 @@ import { ChangePassword } from './change-password';
               <div class="menu" role="menu">
                 <div class="menu-header">
                   <strong>{{ me.displayName }}</strong>
-                  <span class="muted small">{{ '@' + me.username }} · {{ me.role }}</span>
+                  <span class="muted small">
+                    @if (auth.isGuest()) { Browsing sample data } @else { {{ '@' + me.username }} · {{ me.role }} }
+                  </span>
                 </div>
                 <a role="menuitem" routerLink="/" (click)="menuOpen.set(false)">Projects</a>
                 @if (auth.isAdmin()) {
                   <a role="menuitem" routerLink="/users" (click)="menuOpen.set(false)">Manage users</a>
                 }
-                <button role="menuitem" (click)="menuOpen.set(false); changingPassword.set(true)">Change password</button>
-                <button role="menuitem" (click)="auth.logout()">Sign out</button>
+                @if (!auth.isGuest()) {
+                  <button role="menuitem" (click)="menuOpen.set(false); changingPassword.set(true)">Change password</button>
+                }
+                <button role="menuitem" (click)="auth.logout()">{{ auth.isGuest() ? 'Leave the tour' : 'Sign out' }}</button>
               </div>
             }
           </div>
         }
       </div>
     </header>
+
+    @if (auth.isGuest()) {
+      <div class="guest-bar" role="status">
+        You're exploring <strong>sample data</strong> as a guest. Nothing here can be changed.
+        <button class="link-btn" (click)="auth.logout()">Sign in to your workspace</button>
+      </div>
+    }
 
     @if (changingPassword()) {
       <app-change-password (closed)="changingPassword.set(false)" />
@@ -54,7 +66,7 @@ export class Topbar {
   protected readonly auth = inject(AuthService);
   private readonly host = inject(ElementRef<HTMLElement>);
 
-  /** Current page name shown after "Projects /". */
+  /** Set on any page below Projects; its presence is what shows the way back. */
   readonly crumb = input<string | null>(null);
   readonly menuOpen = signal(false);
   readonly changingPassword = signal(false);

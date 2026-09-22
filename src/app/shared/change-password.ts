@@ -3,21 +3,22 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
 import { ToastService } from '../core/toast.service';
 import { Modal } from './modal';
+import { PeekPassword } from './peek-password';
 
 @Component({
   selector: 'app-change-password',
-  imports: [FormsModule, Modal],
+  imports: [FormsModule, Modal, PeekPassword],
   template: `
     <app-modal heading="Change password" (closed)="closed.emit()">
       <form id="changePasswordForm" class="form" (ngSubmit)="save()">
         <label>Current password
-          <input name="current" type="password" [(ngModel)]="current" required autocomplete="current-password" autofocus />
+          <input name="current" appPeekPassword [(ngModel)]="current" required autocomplete="current-password" autofocus />
         </label>
         <label>New password <small class="muted">at least 8 characters</small>
-          <input name="next" type="password" [(ngModel)]="next" required minlength="8" autocomplete="new-password" />
+          <input name="next" appPeekPassword [(ngModel)]="next" required minlength="8" autocomplete="new-password" />
         </label>
         <label>Confirm new password
-          <input name="confirm" type="password" [(ngModel)]="confirm" required autocomplete="new-password" />
+          <input name="confirm" appPeekPassword [(ngModel)]="confirm" required autocomplete="new-password" />
         </label>
         @if (confirm && next !== confirm) { <p class="field-error">Passwords do not match.</p> }
         <p class="muted small">Other browsers where you are signed in will be signed out.</p>
