@@ -3,8 +3,9 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, UserOption, initials, slug } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, UserOption, avatarTone, initials, slug } from '../core/models';
 import { ToastService } from '../core/toast.service';
+import { Icon } from './icon';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
 import { TagInput } from './tag-input';
@@ -12,7 +13,7 @@ import { TagInput } from './tag-input';
 /** Ticket Details window: an editable Details box, then Comments and History tabs. */
 @Component({
   selector: 'app-ticket-details',
-  imports: [FormsModule, DatePipe, Modal, TagInput, RichText],
+  imports: [FormsModule, DatePipe, Modal, TagInput, RichText, Icon],
   template: `
     <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
@@ -78,7 +79,7 @@ import { TagInput } from './tag-input';
               <span class="detail-label">Description</span>
               <app-rich-text [value]="form.description" (valueChange)="form.description = $event; touch()"
                 [projectId]="t.projectId" [readonly]="!canEdit()"
-                placeholder="Describe the issue, or press 📋 Template. Paste screenshots or videos here." />
+                placeholder="Describe the issue, or press Template. Paste screenshots or videos here." />
             </div>
           </form>
           <p class="muted small audit">
@@ -117,7 +118,7 @@ import { TagInput } from './tag-input';
           <section class="comments" role="tabpanel" aria-label="Comments">
             @for (c of t.comments; track c.commentId) {
               <article class="comment">
-                <span class="avatar" aria-hidden="true">{{ initialsOf(c.authorName) }}</span>
+                <span class="avatar avatar-t{{ toneOf(c.authorName) }}" aria-hidden="true">{{ initialsOf(c.authorName) }}</span>
                 <div class="grow">
                   <header class="comment-head">
                     <strong>{{ c.authorName }}</strong>
@@ -133,7 +134,7 @@ import { TagInput } from './tag-input';
             @if (!auth.isGuest()) {
             <form class="comment-form" (ngSubmit)="postComment()">
               <div class="comment-compose">
-                <span class="avatar" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
+                <span class="avatar avatar-t{{ toneOf(auth.user()?.displayName) }}" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
                 <textarea name="text" rows="3" [(ngModel)]="commentText" placeholder="Add a comment…" aria-label="Comment text"
                   (keydown.control.enter)="postComment()"></textarea>
               </div>
@@ -148,7 +149,7 @@ import { TagInput } from './tag-input';
           <section class="history" role="tabpanel" aria-label="History">
             @for (h of t.history; track h.historyId) {
               <div class="history-row">
-                <span class="avatar avatar-sm" aria-hidden="true">{{ initialsOf(h.userName) }}</span>
+                <span class="avatar avatar-sm avatar-t{{ toneOf(h.userName) }}" aria-hidden="true">{{ initialsOf(h.userName) }}</span>
                 <div class="grow">
                   @if (h.field === 'Created') {
                     <strong>{{ h.userName }}</strong> created the ticket
@@ -158,7 +159,7 @@ import { TagInput } from './tag-input';
                     <strong>{{ h.userName }}</strong> changed <strong>{{ h.field }}</strong>
                     <span class="change">
                       <span class="old">{{ h.oldValue || '(empty)' }}</span>
-                      <span aria-hidden="true">→</span><span class="sr-only">to</span>
+                      <app-icon name="arrow-right" /><span class="sr-only">to</span>
                       <span class="new">{{ h.newValue || '(empty)' }}</span>
                     </span>
                   }
@@ -219,6 +220,7 @@ export class TicketDetails {
   readonly types = TICKET_TYPES;
   readonly slugOf = slug;
   readonly initialsOf = initials;
+  readonly toneOf = avatarTone;
 
   form: SaveTicket = emptyForm();
   commentText = '';

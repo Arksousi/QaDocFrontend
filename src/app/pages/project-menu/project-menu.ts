@@ -6,17 +6,18 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Project, canManageMembers } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
+import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
 import { ProjectMembers } from './project-members';
 
 @Component({
   selector: 'app-project-menu',
-  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers],
+  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers, Icon],
   template: `
     <app-topbar>
       @if (!auth.isGuest()) {
-        <button class="btn btn-primary" (click)="openAdd()">+ Add project</button>
+        <button class="btn btn-primary" (click)="openAdd()"><app-icon name="plus" /> Add project</button>
       }
     </app-topbar>
 
@@ -24,7 +25,18 @@ import { ProjectMembers } from './project-members';
       <h1>Projects</h1>
 
       @if (loading()) {
-        <p class="muted">Loading…</p>
+        <!-- Holds the shape of what is coming — the card strip, then the table — so the page does
+             not reflow the moment the projects land. -->
+        <section aria-hidden="true">
+          <h2 class="section-title">Recent projects</h2>
+          <div class="recent-grid">
+            @for (i of placeholders; track i) { <div class="skeleton skeleton-card"></div> }
+          </div>
+          <div class="card">
+            @for (i of placeholders; track i) { <div class="skeleton skeleton-line w-80"></div> }
+          </div>
+        </section>
+        <p class="sr-only" role="status">Loading projects…</p>
       } @else if (projects().length === 0) {
         <div class="card empty">
           <h2>No projects yet</h2>
@@ -50,7 +62,7 @@ import { ProjectMembers } from './project-members';
                 <div class="row-menu">
                   <button class="icon-btn" (click)="toggleMenu('card', p)"
                     [attr.aria-expanded]="menuKey() === 'card:' + p.projectId" aria-haspopup="menu"
-                    [attr.aria-label]="'Actions for ' + p.projectName">⋯</button>
+                    [attr.aria-label]="'Actions for ' + p.projectName"><app-icon name="more" /></button>
                   @if (menuKey() === 'card:' + p.projectId) {
                     <div class="menu" role="menu">
                       <button role="menuitem" (click)="openInfo(p)">Project info</button>
@@ -71,8 +83,11 @@ import { ProjectMembers } from './project-members';
         <section class="card" aria-labelledby="all-heading">
           <div class="card-head">
             <h2 id="all-heading" class="section-title">All projects</h2>
-            <input class="search" type="search" placeholder="Search by name…" aria-label="Search projects"
-              [ngModel]="search()" (ngModelChange)="search.set($event)" />
+            <span class="search-wrap">
+              <app-icon name="search" />
+              <input type="search" placeholder="Search by name…" aria-label="Search projects"
+                [ngModel]="search()" (ngModelChange)="search.set($event)" />
+            </span>
           </div>
           <div class="table-wrap" [class.menu-open]="menuKey() !== null">
             <table class="table table-hover">
@@ -97,7 +112,7 @@ import { ProjectMembers } from './project-members';
                       <div class="row-menu">
                         <button class="icon-btn" (click)="toggleMenu('row', p)"
                           [attr.aria-expanded]="menuKey() === 'row:' + p.projectId" aria-haspopup="menu"
-                          [attr.aria-label]="'Actions for ' + p.projectName">⋯</button>
+                          [attr.aria-label]="'Actions for ' + p.projectName"><app-icon name="more" /></button>
                         @if (menuKey() === 'row:' + p.projectId) {
                           <div class="menu" role="menu">
                             <button role="menuitem" (click)="openInfo(p)">Project info</button>
@@ -209,6 +224,9 @@ export class ProjectMenuPage implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly host = inject(ElementRef<HTMLElement>);
   protected readonly auth = inject(AuthService);
+
+  /** Rows the skeleton draws while loading. Four is what the recent grid usually shows. */
+  readonly placeholders = [0, 1, 2, 3];
 
   readonly projects = signal<Project[]>([]);
   readonly recent = signal<Project[]>([]);

@@ -3,8 +3,9 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
-import { ROLES, Role, User, initials } from '../../core/models';
+import { ROLES, Role, User, avatarTone, initials } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
+import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
 
@@ -20,10 +21,10 @@ interface UserDraft {
 /** Admin-only: add people, change roles, deactivate, reset passwords. */
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, DatePipe, Modal, Topbar],
+  imports: [FormsModule, DatePipe, Modal, Topbar, Icon],
   template: `
     <app-topbar crumb="Users">
-      <button class="btn btn-primary" (click)="openAdd()">+ Add user</button>
+      <button class="btn btn-primary" (click)="openAdd()"><app-icon name="plus" /> Add user</button>
     </app-topbar>
 
     <main class="page">
@@ -36,8 +37,11 @@ interface UserDraft {
 
       <section class="card">
         <div class="toolbar">
-          <input class="search" type="search" placeholder="Search name or username…" aria-label="Search users"
-            [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          <span class="search-wrap">
+            <app-icon name="search" />
+            <input type="search" placeholder="Search name or username…" aria-label="Search users"
+              [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          </span>
         </div>
         <div class="table-wrap">
           <table class="table table-hover">
@@ -49,7 +53,7 @@ interface UserDraft {
                 <tr [class.row-inactive]="!u.isActive">
                   <td>
                     <span class="person">
-                      <span class="avatar" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                      <span class="avatar avatar-t{{ toneOf(u.displayName) }}" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
                       {{ u.displayName }}
                       @if (u.userId === auth.user()?.userId) { <span class="muted small">(you)</span> }
                     </span>
@@ -142,6 +146,7 @@ export class UsersPage implements OnInit {
 
   readonly roles = ROLES;
   readonly initialsOf = initials;
+  readonly toneOf = avatarTone;
   readonly activeCount = computed(() => this.users().filter((u) => u.isActive).length);
   readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();

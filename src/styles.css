@@ -1,21 +1,83 @@
 /* QaDoc — global styles. Single light look, JIRA-inspired. */
+
+/*
+ * Everything below reads from these. A raw hex in a rule further down is a bug: it was how the
+ * same grey ended up written six different ways and how #0c66e4 got typed out beside every
+ * `var(--primary)` that already meant it.
+ */
 :root {
   color-scheme: light;
+
+  /* ---- Surfaces & neutrals ---- */
   --bg: #f4f5f7;
   --surface: #ffffff;
-  --surface-2: #fafbfc;
+  --surface-2: #fafbfc;        /* inset panels: details box, hovered table row */
+  --surface-3: #f7f8fa;        /* editor toolbars, the strip above a text area */
+  --neutral-50: #f1f2f4;       /* the lighter of the two hover fills */
+  --neutral-100: #ebecf0;      /* button hover, tag and count chips */
   --border: #dfe1e6;
-  --border-strong: #c1c7d0;
+  --border-strong: #c1c7d0;    /* anything a user types into */
+  --on-dark: #ffffff;
+
+  /* ---- Text ---- */
   --text: #172b4d;
   --text-2: #42526e;
   --muted: #6b778c;
+
+  /* ---- Brand & intent ---- */
   --primary: #0c66e4;
   --primary-hover: #0055cc;
   --primary-soft: #e9f2ff;
+  --primary-soft-2: #eef4ff;   /* the drop target, one step past --primary-soft */
+  --primary-border: #a9c4ee;   /* a hovered control hinting it is about to become primary */
   --danger: #c9372c;
-  --radius: 8px;
+  --danger-hover: #ae2e24;
+  --danger-soft: #fbe9e7;
+  --success: #22a06b;
+  /* Admin's colour, and the avatar tone the app has always defaulted to. */
+  --purple: #5e4db2;
+  --purple-soft: #f3f0ff;
+
+  /* ---- Spacing scale ---- */
+  /* Six steps on a 4px grid. Padding that is not one of these is padding nobody chose. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ---- Radius scale ---- */
+  /* There used to be five unrelated radii (4, 6, 8, 10, 20). These are the four that meant
+     something: a chip, a control, a container, a dialog — plus a true pill. */
+  --radius-sm: 4px;            /* chips, tags, menu items */
+  --radius: 6px;               /* buttons, inputs, anything you click */
+  --radius-md: 8px;            /* cards, panels */
+  --radius-lg: 12px;           /* modals */
+  --radius-pill: 999px;
+
+  /* ---- Type scale ---- */
+  /* h2 and h3 used to differ by 0.05rem, which is not a hierarchy. Each step below is visible. */
+  --fs-xs: 11px;               /* state and role pills */
+  --fs-sm: 12px;               /* hints, timestamps, .small */
+  --fs-md: 13px;               /* form labels, secondary controls */
+  --fs-base: 14px;
+  --fs-h3: 15px;
+  --fs-h2: 18px;
+  --fs-h1: 24px;
+
+  /* ---- Control heights ---- */
+  /* One row, one height: .btn, .filter-button and every toolbar input share --control-h. */
+  --control-h: 34px;
+  --control-h-sm: 28px;
+
   --shadow: 0 1px 2px rgba(9, 30, 66, 0.12);
+  --shadow-md: 0 6px 20px rgba(9, 30, 66, 0.18);
   --shadow-lg: 0 8px 28px rgba(9, 30, 66, 0.25);
+  --ease: .12s ease;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -23,164 +85,220 @@ html, body { margin: 0; min-height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: var(--fs-base)/1.5 var(--font);
 }
 a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
-h1 { font-size: 1.6rem; margin: 0 0 4px; line-height: 1.25; }
-h2 { font-size: 1.05rem; margin: 0 0 8px; }
-h3 { font-size: 1rem; margin: 0 0 6px; }
-p { margin: 0 0 6px; }
+h1 { font-size: var(--fs-h1); font-weight: 700; letter-spacing: -.2px; margin: 0 0 var(--space-1); line-height: 1.25; }
+h2 { font-size: var(--fs-h2); font-weight: 600; margin: 0 0 var(--space-2); line-height: 1.3; }
+h3 { font-size: var(--fs-h3); font-weight: 600; margin: 0 0 var(--space-1); line-height: 1.35; }
+p { margin: 0 0 var(--space-1); }
 
 .muted { color: var(--muted); }
-.small { font-size: 12px; }
+.small { font-size: var(--fs-sm); }
 .center { text-align: center; }
-.mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
+.mono { font-family: var(--font-mono); font-size: var(--fs-md); }
 .nowrap { white-space: nowrap; }
 .grow { flex: 1; min-width: 0; }
-.pad { padding: 16px; }
+.pad { padding: var(--space-4); }
 .push-left { margin-left: auto !important; }
 .danger { color: var(--danger) !important; }
 .prose { white-space: pre-wrap; word-break: break-word; margin: 0; }
 
+/* ---------- Icons ---------- */
+/* One family, one weight, always inheriting the colour of whatever it sits in. Sized in `em` so a
+   glyph inside .small or a heading scales with the text instead of floating at a fixed 16px. */
+.icon { width: 1.15em; height: 1.15em; flex: 0 0 auto; display: block; }
+.icon-close, .icon-more { width: 1.25em; height: 1.25em; }
+.icon-caret, .icon-sort-asc, .icon-sort-desc { width: 1em; height: 1em; }
+/* Inline beside words (a comment count, a diff arrow): nudged onto the text baseline. */
+.icon-inline { display: inline-block; vertical-align: -.16em; }
+
 /* ---------- Buttons ---------- */
 .btn {
-  display: inline-flex; align-items: center; gap: 6px; justify-content: center;
-  height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid transparent;
+  display: inline-flex; align-items: center; gap: var(--space-1); justify-content: center;
+  height: var(--control-h); padding: 0 var(--space-3); border-radius: var(--radius);
+  border: 1px solid transparent;
   font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
   background: var(--surface); color: var(--text-2); text-decoration: none !important;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
 }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary { background: var(--primary); color: var(--on-dark); }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-ghost { background: transparent; border-color: var(--border); }
-.btn-ghost:hover:not(:disabled) { background: #ebecf0; }
-.btn-danger { background: var(--danger); color: #fff; }
-.btn-danger:hover:not(:disabled) { background: #ae2e24; }
-.btn-sm { height: 28px; padding: 0 10px; font-size: 13px; }
+.btn-ghost:hover:not(:disabled) { background: var(--neutral-100); }
+.btn-danger { background: var(--danger); color: var(--on-dark); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-sm { height: var(--control-h-sm); padding: 0 var(--space-2); font-size: var(--fs-md); }
 .icon-btn {
-  border: 0; background: transparent; cursor: pointer; font-size: 18px; line-height: 1;
-  width: 30px; height: 30px; border-radius: 4px; color: var(--muted);
+  display: inline-grid; place-items: center;
+  border: 0; background: transparent; cursor: pointer; line-height: 1;
+  width: 30px; height: 30px; border-radius: var(--radius-sm); color: var(--muted);
+  transition: background var(--ease), color var(--ease);
 }
-.icon-btn:hover { background: #ebecf0; color: var(--text); }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.icon-btn:hover:not(:disabled) { background: var(--neutral-100); color: var(--text); }
+/* One focus treatment for everything. Inputs draw it inside their own border (offset -1px, below)
+   because an outset ring on a full-width field clips against the next control in a tight form. */
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---------- Forms ---------- */
 input, select, textarea {
   font: inherit; color: var(--text); background: var(--surface);
-  border: 1px solid var(--border-strong); border-radius: 6px; padding: 7px 10px; width: 100%;
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  padding: 7px var(--space-2); width: 100%;
+  transition: border-color var(--ease);
 }
-input:disabled, input[readonly] { background: #f1f2f4; color: var(--muted); }
+input:disabled, input[readonly] { background: var(--neutral-50); color: var(--muted); }
 textarea { resize: vertical; }
+input:hover:not(:disabled):not([readonly]), select:hover:not(:disabled), textarea:hover:not([readonly]) { border-color: var(--muted); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
-.form { display: flex; flex-direction: column; gap: 14px; }
-.form label, .field > label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; color: var(--text-2); font-size: 13px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.hint { font-size: 12px; color: var(--muted); }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+.form { display: flex; flex-direction: column; gap: var(--space-3); }
+.form label, .field > label { display: flex; flex-direction: column; gap: var(--space-1); font-weight: 600; color: var(--text-2); font-size: var(--fs-md); }
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.hint { font-size: var(--fs-sm); color: var(--muted); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
 
 /* ---------- Top bar & page ---------- */
 .topbar {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap;
   background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 10px 32px; position: sticky; top: 0; z-index: 10;
+  padding: var(--space-2) var(--space-6); position: sticky; top: 0; z-index: 10;
 }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none !important; }
-.brand-logo { display: block; height: 64px; width: auto; }
+.brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none !important; }
+.brand:hover { text-decoration: none; }
+/* A 64px mark in a bar with 10px padding made the navigation 84px of mostly logo, on every page,
+   above content that had to fight it for the top of the screen. The bar is chrome. */
+.brand-logo { display: block; height: 26px; width: auto; }
+.brand-name { letter-spacing: -.2px; }
 /* One quiet control in the bar: a way back, nothing competing with the page title below. */
 .back-link {
-  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 10px;
-  border: 1px solid var(--border); border-radius: 20px;
-  font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none !important;
-  white-space: nowrap; transition: color .12s, border-color .12s, background .12s;
+  display: inline-flex; align-items: center; gap: 7px; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  font-size: var(--fs-md); font-weight: 500; color: var(--muted); text-decoration: none !important;
+  white-space: nowrap; transition: color var(--ease), border-color var(--ease), background var(--ease);
 }
-.back-link:hover { color: var(--primary); border-color: #a9c4ee; background: var(--primary-soft); }
-.back-arrow { font-size: 14px; line-height: 1; }
+.back-link:hover { color: var(--primary); border-color: var(--primary-border); background: var(--primary-soft); }
 
 /*
  * The project's identity, stated once and given room: the code set apart on the left as the
  * key prefix it is, the name at full size, the counts quiet underneath.
  */
-.project-head { display: flex; align-items: center; gap: 14px; margin: 4px 0 22px; }
+.project-head { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-1) 0 var(--space-5); }
 .project-code {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  min-width: 54px; height: 38px; padding: 0 12px;
+  min-width: 54px; height: 38px; padding: 0 var(--space-3);
   background: var(--primary-soft); color: var(--primary);
-  border-radius: 10px; font-size: 13px; font-weight: 700; letter-spacing: .6px;
+  border-radius: var(--radius-md); font-size: var(--fs-md); font-weight: 700; letter-spacing: .6px;
 }
 .project-titles { min-width: 0; }
-.project-head h1 {
-  margin: 0; font-size: 25px; font-weight: 700; line-height: 1.2; letter-spacing: -.2px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.project-note { margin: 3px 0 0; font-size: 13px; color: var(--muted); }
+.project-head h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-note { margin: 3px 0 0; font-size: var(--fs-md); color: var(--muted); }
 .project-note strong { color: var(--text); font-weight: 600; }
-.project-note-sep { margin: 0 5px; color: #c1c7d0; }
-.topbar-actions { margin-left: auto; display: flex; gap: 8px; }
-.page { max-width: 1440px; margin: 0 auto; padding: 24px 32px 48px; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-.section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0; }
+.project-note-sep { margin: 0 5px; color: var(--border-strong); }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
+.page { max-width: 1440px; margin: 0 auto; padding: var(--space-5) var(--space-6) 48px; }
+/* A page title owns the space under it. The h1 default of 4px put "Projects" and the
+   "RECENT PROJECTS" label almost on the same line, so neither read as the heading. */
+.page > h1 { margin-bottom: var(--space-4); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.section-title { font-size: var(--fs-md); text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0; font-weight: 600; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 20px; }
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-.empty { text-align: center; padding: 40px 16px; color: var(--text-2); }
-.empty .btn { margin-top: 8px; }
-.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: var(--space-4); margin-bottom: var(--space-5); }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
+.empty { text-align: center; padding: 40px var(--space-4); color: var(--text-2); }
+.empty .btn { margin-top: var(--space-2); }
+.toolbar { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); flex-wrap: wrap; }
 .toolbar select { width: auto; min-width: 140px; }
 /* One row, one height. The form inputs size themselves from padding and line-height, which
-   lands ~3px above the fixed 34px of .filter-button and .btn beside them — small, but it reads
+   lands ~3px above the fixed height of .filter-button and .btn beside them — small, but it reads
    as a step in the row. The vertical padding goes with it: left in place it fights the height on
-   a shrink, and the text is centred by the line box anyway. font-size matches the buttons' 13px,
-   or the search box reads as the larger control even at an identical height. Pinned to .toolbar
+   a shrink, and the text is centred by the line box anyway. font-size matches the buttons', or
+   the search box reads as the larger control even at an identical height. Pinned to .toolbar
    rather than the global input rule, which every form in the app sizes itself from. */
 .toolbar input, .toolbar select, .toolbar .filter-button {
-  height: 34px; padding-top: 0; padding-bottom: 0; font-size: 13px;
+  height: var(--control-h); padding-top: 0; padding-bottom: 0; font-size: var(--fs-md);
 }
 .toolbar .check input { height: auto; }
 .search { max-width: 320px; }
+/* The magnifier sits inside the field rather than beside it, so the row loses no width to it.
+   Centred off the wrapper's own height rather than left in flow: an absolutely positioned child
+   keeps its static position for `top`, which drops it onto the text baseline. */
+.search-wrap { position: relative; display: inline-flex; align-items: center; max-width: 320px; flex: 1; }
+.search-wrap .icon-search { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search-wrap input { padding-left: 30px; }
+
+/* ---------- Loading skeletons ---------- */
+/* A bare "Loading…" gives no sense of what is coming or how much. These hold the shape of the
+   real content, so the page does not jump when it lands. */
+.skeleton {
+  background: linear-gradient(90deg, var(--neutral-100) 25%, var(--neutral-50) 37%, var(--neutral-100) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes skeleton-shimmer { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
+.skeleton-line { height: 12px; margin: var(--space-2) 0; }
+.skeleton-line.w-40 { width: 40%; }
+.skeleton-line.w-60 { width: 60%; }
+.skeleton-line.w-80 { width: 80%; }
+.skeleton-chip { height: 18px; width: 44px; border-radius: var(--radius-sm); }
+.skeleton-avatar { height: 22px; width: 22px; border-radius: 50%; }
+.skeleton-card { height: 118px; border-radius: var(--radius-md); }
+.skeleton-row td { padding: var(--space-2) var(--space-2); }
+/* The shimmer is decoration; a vestibular trigger is not worth it. The block still shows. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { transition-duration: .01ms !important; }
+}
 
 /* ---------- Project Menu ---------- */
-.recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin: 10px 0 24px; }
+.recent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); margin: var(--space-2) 0 var(--space-5); }
 .recent-card { display: flex; flex-direction: column; margin: 0; color: inherit; text-decoration: none !important; transition: box-shadow .15s, border-color .15s; }
-.recent-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(9,30,66,.15); }
-.recent-card h3 { margin: 6px 0 4px; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(9, 30, 66, .15); }
+.recent-card h3 { margin: var(--space-1) 0 var(--space-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-card p { margin: 0; }
-.id-chip { align-self: flex-start; font: 700 11px ui-monospace, monospace; background: var(--primary-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px; }
+.id-chip { align-self: flex-start; font: 700 var(--fs-xs) var(--font-mono); background: var(--primary-soft); color: var(--primary); padding: 2px var(--space-1); border-radius: var(--radius-sm); }
 
 /* The ⋯ button sits over the card rather than inside its <a>, so the card stays one link. */
 .recent-item { position: relative; }
-.recent-item .recent-card h3 { padding-right: 28px; }
-.recent-item .row-menu { position: absolute; top: 10px; right: 10px; }
+.recent-item .recent-card h3 { padding-right: var(--space-5); }
+.recent-item .row-menu { position: absolute; top: var(--space-2); right: var(--space-2); }
 
 /* ---------- Folder rail (Project - Folder - Ticket) ---------- */
-.folder-layout { display: flex; align-items: flex-start; gap: 16px; }
-.folder-rail { flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; padding: 12px; }
-.folder-rail .section-title { margin-bottom: 6px; }
+.folder-layout { display: flex; align-items: flex-start; gap: var(--space-4); }
+.folder-rail { flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); }
+.folder-rail .section-title { margin-bottom: var(--space-1); }
 .folder-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; text-align: left;
   border: 0; background: transparent; font: inherit; color: var(--text); cursor: pointer;
-  padding: 7px 8px; border-radius: 6px;
+  padding: 7px var(--space-2); border-radius: var(--radius);
+  transition: background var(--ease), color var(--ease);
 }
-.folder-item:hover { background: #f1f2f4; }
+.folder-item:hover { background: var(--neutral-50); }
 .folder-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.folder-add { color: var(--primary); font-weight: 600; margin-top: 4px; }
-/* Below tablet the rail becomes a horizontal strip so the table keeps the full width. */
-@media (max-width: 860px) {
-  .folder-layout { flex-direction: column; }
-  .folder-rail { flex: 1 1 auto; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .folder-rail .section-title { width: 100%; }
-  .folder-item { width: auto; }
-}
+.folder-add { color: var(--primary); font-weight: 600; margin-top: var(--space-1); }
+.folder-search { padding: 5px var(--space-2); font-size: var(--fs-md); margin-bottom: var(--space-1); }
+.folder-empty { padding: var(--space-1) var(--space-2); margin: 0; }
+/* Delete sits beside the folder button, not inside it: a button cannot contain a button. */
+.folder-row { display: flex; align-items: center; gap: 2px; }
+.folder-row .folder-item { flex: 1; min-width: 0; }
+.folder-del { flex: 0 0 auto; width: var(--space-5); height: var(--space-5); opacity: 0; transition: opacity var(--ease), color var(--ease), background var(--ease); }
+.folder-row:hover .folder-del, .folder-del:focus-visible { opacity: 1; }
+.folder-del:hover:not(:disabled) { color: var(--danger); background: var(--danger-soft); }
+.folder-del:disabled { opacity: 0; cursor: not-allowed; }
+.folder-row:hover .folder-del:disabled { opacity: .35; }
 
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; }
 /* overflow-x:auto also clips vertically, which would cut off an open row menu. */
 .table-wrap.menu-open { overflow: visible; }
 .table { width: 100%; border-collapse: collapse; }
-.table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 2px solid var(--border); padding: 6px 10px; white-space: nowrap; }
-.table td { border-bottom: 1px solid var(--border); padding: 9px 10px; vertical-align: middle; }
+.table th { text-align: left; font-size: var(--fs-sm); font-weight: 600; color: var(--muted); border-bottom: 2px solid var(--border); padding: var(--space-1) var(--space-2); white-space: nowrap; }
+.table td { border-bottom: 1px solid var(--border); padding: var(--space-2) var(--space-2); vertical-align: middle; }
 .table tr:last-child td { border-bottom: 0; }
+.table-hover tbody tr { transition: background var(--ease); }
 .table-hover tbody tr:hover { background: var(--surface-2); }
 .row-selected { background: var(--primary-soft) !important; }
 .clickable { cursor: pointer; }
@@ -188,21 +306,26 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 /* Beats `.table th`, so a count sits directly under its own heading. */
 .table th.num { text-align: right; width: 110px; }
 .w-id { width: 72px; }
-.w-actions { width: 44px; padding-left: 0 !important; padding-right: 6px !important; text-align: right; }
+/* Was declared twice, 44px here and 1% in the People section, so which one won depended on
+   source order rather than intent. 1% + nowrap is the one that was wanted: shrink to the buttons. */
+.w-actions { width: 1%; white-space: nowrap; padding-left: 0 !important; padding-right: var(--space-1) !important; text-align: right; }
 .row-menu { position: relative; display: inline-block; }
 .title-cell { font-weight: 500; min-width: 320px; overflow-wrap: anywhere; }
 /* The assignee is a fixed, narrow track: long names ellipsize rather than push the title out. */
 .col-assignee { width: 1%; max-width: 160px; white-space: nowrap; }
-.col-assignee .person { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.col-assignee .person { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%; }
 .col-assignee .person-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* width:100% on a column of an auto-layout table makes it absorb all spare width, while
    width:1% + nowrap shrinks a column to exactly its content. */
 .col-grow { width: 100%; }
 .col-fit { width: 1%; white-space: nowrap; }
 .col-tags { width: 1%; min-width: 90px; }
-.th-sort { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; padding: 0; display: inline-flex; gap: 4px; align-items: center; }
+.th-sort { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; padding: 0; display: inline-flex; gap: var(--space-1); align-items: center; }
 .th-sort:hover { color: var(--text); }
-.sort-arrow { font-size: 9px; width: 8px; }
+/* Reserved whether or not this column is the sorted one, so the headings do not shift sideways
+   as you click between them. */
+.sort-arrow { width: 12px; height: 12px; display: inline-grid; place-items: center; color: var(--primary); }
+.comment-count { display: inline-flex; align-items: center; gap: 3px; margin-left: var(--space-1); }
 
 /* ---------- Multi-select filter ---------- */
 /* Reads as a <select>, but opens a list of checkboxes so several values can be ticked at once.
@@ -210,91 +333,144 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
    three sit in a row and would otherwise each size to their own label. */
 .filter-menu { position: relative; display: inline-block; }
 .filter-button {
-  display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
-  height: 34px; padding: 0 10px; min-width: 140px;
+  display: inline-flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  height: var(--control-h); padding: 0 var(--space-2); min-width: 150px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  font: inherit; font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: var(--fs-md); color: var(--text); cursor: pointer; white-space: nowrap;
+  transition: border-color var(--ease), color var(--ease);
 }
-.filter-button:hover { border-color: #a9c4ee; }
+.filter-button:hover { border-color: var(--primary-border); }
 .filter-button.active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
-.filter-caret { font-size: 10px; color: var(--muted); }
+.filter-caret { color: var(--muted); display: inline-flex; transition: transform var(--ease); }
+/* The caret turns to point at the panel it opened, the one cue that says which menu is showing. */
+.filter-button[aria-expanded="true"] .filter-caret { transform: rotate(180deg); }
+/*
+ * The panel is exactly as wide as the button that opened it, and every row in all three menus is
+ * the same height with the same three slots: checkbox, a 16px marker, then the label as plain
+ * text. Before this the three menus each sized themselves to their own content and each drew
+ * their value a different way — a full-colour state pill, an icon and a word, a grey tag chip —
+ * so one toolbar produced three controls that shared no shape. The pills stay in the ticket
+ * table, where the colour is doing work; in a list of checkboxes it was only noise.
+ */
 .filter-panel {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 190px;
+  position: absolute; top: calc(100% + var(--space-1)); left: 0; z-index: 20;
+  width: 100%; min-width: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: 0 6px 20px rgb(9 30 66 / 18%); padding: 6px;
+  box-shadow: var(--shadow-md); padding: var(--space-1);
 }
 /* A project accumulates tags without limit, so that panel scrolls rather than running off-screen. */
-.filter-panel-scroll { max-height: 300px; overflow-y: auto; max-width: 280px; }
-.filter-option { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.filter-panel-scroll { max-height: 300px; overflow-y: auto; }
+.filter-option {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 32px; padding: 0 var(--space-2); border-radius: var(--radius-sm);
+  cursor: pointer; font-size: var(--fs-md);
+  transition: background var(--ease);
+}
 .filter-option:hover { background: var(--surface-2); }
 /* width:auto and flex:none, or the global full-width input rule stretches the box and every
    row's label lands at a different offset. */
-.filter-option input { width: auto; flex: none; margin: 0; cursor: pointer; }
+.filter-option input { width: 14px; height: 14px; flex: none; margin: 0; cursor: pointer; accent-color: var(--primary); }
+/* A fixed slot, so the labels start on one line whether the marker is a swatch, a type glyph or
+   a tag glyph — and whether or not a given menu has one at all. */
+.filter-marker { width: 16px; flex: none; display: inline-grid; place-items: center; color: var(--muted); }
+/* The type marker reuses .type-chip purely for its colour, so it must not also bring the chip's
+   left-aligned icon-and-word layout into a slot that holds only the glyph. */
+.filter-marker.type-chip { display: inline-grid; place-items: center; gap: 0; }
+.filter-marker .type-icon { width: 16px; height: 16px; }
+.filter-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+/* The state's colour, reduced to a swatch. It borrows the background from the same `.state-*`
+   class the table pill uses, so the two can never drift apart; the hairline keeps the palest
+   swatch (To Do) visible against the panel. */
+.filter-swatch {
+  width: 12px; height: 12px; border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(9, 30, 66, .16);
+}
+/* Same height and padding as the options above it, so it reads as the last line of the list. */
 .filter-clear {
-  width: 100%; margin-top: 4px; padding: 6px 8px; border: 0; border-top: 1px solid var(--border);
-  background: none; font: inherit; font-size: 12px; color: var(--muted); text-align: left; cursor: pointer;
+  width: 100%; height: 32px; margin-top: var(--space-1);
+  padding: 0 var(--space-2); border: 0; border-top: 1px solid var(--border);
+  background: none; font: inherit; font-size: var(--fs-md); color: var(--muted);
+  text-align: left; cursor: pointer; transition: color var(--ease);
 }
 .filter-clear:hover { color: var(--primary); }
-.filter-empty { margin: 0; padding: 6px 8px; }
+.filter-empty { margin: 0; padding: var(--space-2); }
 
 /* ---------- State & tags ---------- */
-.state { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+.state { display: inline-block; font-size: var(--fs-xs); font-weight: 700; padding: 2px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
 /*
  * The five states read as one journey: grey to do, then three shades of blue for work in
  * flight — standard while it is being worked, lighter while it waits for confirmation, darker
  * while it is being re-tested — and green for done. Shade alone carries the progress, so the
  * three blues must stay ordered light-to-dark in that sequence.
  */
-.state-open { background: #ebecf0; color: #44546f; }         /* To Do */
-.state-in-progress { background: #0c66e4; color: #fff; }     /* In Progress */
-.state-resolved { background: #cce0ff; color: #0055cc; }     /* awaiting confirmation */
-.state-retest { background: #003884; color: #fff; }          /* being re-tested */
-.state-closed { background: #216e4e; color: #fff; }          /* Done */
+:root {
+  --state-open-fg: #44546f;
+  --state-resolved-bg: #cce0ff;
+  --state-retest-bg: #003884;
+  --state-closed-bg: #216e4e;
+}
+.state-open { background: var(--neutral-100); color: var(--state-open-fg); }   /* To Do */
+.state-in-progress { background: var(--primary); color: var(--on-dark); }      /* In Progress */
+.state-resolved { background: var(--state-resolved-bg); color: var(--primary-hover); } /* awaiting confirmation */
+.state-retest { background: var(--state-retest-bg); color: var(--on-dark); }   /* being re-tested */
+.state-closed { background: var(--state-closed-bg); color: var(--on-dark); }   /* Done */
 
 /* The same colours as text, for the State dropdown: a coloured background on a <select>
    would repaint every row of the open list, which hides the difference instead of showing it. */
 select.state-select { font-weight: 600; }
-.state-text-open { color: #44546f; }
-.state-text-in-progress { color: #0c66e4; }
-.state-text-resolved { color: #0055cc; }
-.state-text-retest { color: #003884; }
-.state-text-closed { color: #216e4e; }
+.state-text-open { color: var(--state-open-fg); }
+.state-text-in-progress { color: var(--primary); }
+.state-text-resolved { color: var(--primary-hover); }
+.state-text-retest { color: var(--state-retest-bg); }
+.state-text-closed { color: var(--state-closed-bg); }
 
-.tags { display: flex; flex-wrap: wrap; gap: 4px; }
-.tag { display: inline-flex; align-items: center; gap: 2px; background: #ebecf0; color: var(--text-2); border-radius: 4px; padding: 1px 8px; font-size: 12px; white-space: nowrap; }
-.tag-input { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border: 1px solid var(--border-strong); border-radius: 6px; padding: 5px 8px; background: var(--surface); cursor: text; min-height: 36px; }
+.tags { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+/* In the ticket list the tags stay on one line and the column sizes to them. Wrapped, a
+   two-tag ticket was a double-height row, so the table's rhythm broke on whichever rows
+   happened to carry two tags. */
+.table .tags { flex-wrap: nowrap; }
+.tag { display: inline-flex; align-items: center; gap: 2px; background: var(--neutral-100); color: var(--text-2); border-radius: var(--radius-sm); padding: 1px var(--space-2); font-size: var(--fs-sm); white-space: nowrap; }
+.tag-input { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px var(--space-2); background: var(--surface); cursor: text; min-height: 36px; }
 .tag-input:focus-within { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 .tag-input input { border: 0; outline: 0; padding: 2px; flex: 1; min-width: 100px; width: auto; }
 .tag-input input:focus { outline: 0; }
-.tag-remove { border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; padding: 0 0 0 4px; }
+.tag-remove { display: inline-grid; place-items: center; border: 0; background: transparent; cursor: pointer; color: var(--muted); line-height: 1; padding: 0 0 0 2px; transition: color var(--ease); }
+/* Smaller than the shared .icon-close: at full size the cross outweighs the word it dismisses. */
+.tag-remove .icon { width: 12px; height: 12px; }
 .tag-remove:hover { color: var(--danger); }
 
 /* ---------- Ticket Details ---------- */
-.details-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface-2); }
-.box-title { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
-.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
-.detail { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.details-box { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--surface-2); }
+.box-title { font-size: var(--fs-md); text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0 0 var(--space-2); display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
+.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-4); }
+.detail { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .detail.span-2 { grid-column: 1 / -1; }
-.field-label { font-weight: 600; color: var(--text-2); font-size: 13px; }
+.field-label { font-weight: 600; color: var(--text-2); font-size: var(--fs-md); }
 
 /* ---------- Description editor ---------- */
-.rte { border: 1px solid var(--border); border-radius: 6px; background: var(--surface); overflow: hidden; }
+.rte { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .rte:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
-.rte.dragging { border-color: var(--primary); border-style: dashed; background: #eef4ff; }
-.rte-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 6px; border-bottom: 1px solid var(--border); background: #f7f8fa; }
-.rte-btn { border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 3px 8px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; }
-.rte-btn:hover { background: #e9ecf1; border-color: var(--border); }
-.rte-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
-.rte-hint { font-size: 12px; color: var(--muted); margin-left: 4px; }
-.rte-editor { min-height: 220px; max-height: 60vh; overflow-y: auto; padding: 10px 12px; line-height: 1.5; outline: none; word-break: break-word; font-weight: 400; color: var(--text); }
+.rte.dragging { border-color: var(--primary); border-style: dashed; background: var(--primary-soft-2); }
+.rte-toolbar { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; padding: var(--space-1) var(--space-1); border-bottom: 1px solid var(--border); background: var(--surface-3); }
+.rte-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid transparent; background: transparent; border-radius: var(--radius-sm);
+  padding: 3px var(--space-2); font: inherit; font-size: var(--fs-md); color: var(--text); cursor: pointer;
+  transition: background var(--ease), border-color var(--ease);
+}
+.rte-btn:hover:not(:disabled) { background: var(--neutral-100); border-color: var(--border); }
+.rte-btn:disabled { opacity: .5; cursor: not-allowed; }
+.rte-sep { width: 1px; height: 18px; background: var(--border); margin: 0 var(--space-1); }
+.rte-hint { font-size: var(--fs-sm); color: var(--muted); margin-left: var(--space-1); }
+.rte-editor { min-height: 220px; max-height: 60vh; overflow-y: auto; padding: var(--space-2) var(--space-3); line-height: 1.5; outline: none; word-break: break-word; font-weight: 400; color: var(--text); }
 .rte-editor:empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; }
 /* Pictures live in their own strip above the text, as small thumbnails. Click one to enlarge. */
-.rte-pics { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: #fafbfc; }
-.rte-pic { position: relative; margin: 0; line-height: 0; display: flex; flex-direction: column; gap: 4px; width: 170px; }
+.rte-pics { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.rte-pic { position: relative; margin: 0; line-height: 0; display: flex; flex-direction: column; gap: var(--space-1); width: 170px; }
 .rte-pic figcaption { line-height: 1.3; }
 .rte-pic-title {
-  width: 100%; padding: 3px 6px; font-size: 12px; text-align: center;
-  border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-2);
+  width: 100%; padding: 3px var(--space-1); font-size: var(--fs-sm); text-align: center;
+  border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-2);
 }
 .rte-pic-title::placeholder { color: var(--muted); }
 .rte-pic:hover .rte-pic-title, .rte-pic-title:focus { border-color: var(--border); background: var(--surface); }
@@ -302,176 +478,178 @@ select.state-select { font-weight: 600; }
    obvious click target and pictures line up with video tiles. */
 .rte-pic-open {
   display: flex; align-items: center; justify-content: center; width: 170px; height: 110px; padding: 0;
-  border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2); cursor: zoom-in; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); cursor: zoom-in; overflow: hidden;
+  transition: border-color var(--ease);
 }
 .rte-pic-open:hover { border-color: var(--primary); }
 .rte-pic-open img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
 .rte-pic-remove {
   position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; padding: 0;
+  display: grid; place-items: center;
   border: 1px solid var(--border); border-radius: 50%; background: var(--surface); color: var(--muted);
-  font-size: 14px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .12s; box-shadow: var(--shadow);
+  line-height: 1; cursor: pointer; opacity: 0; transition: opacity var(--ease), color var(--ease), border-color var(--ease); box-shadow: var(--shadow);
 }
 .rte-pic:hover .rte-pic-remove, .rte-pic-remove:focus-visible { opacity: 1; }
 .rte-pic-remove:hover { color: var(--danger); border-color: var(--danger); }
 
 /* Videos show as a compact tile rather than a tiny player: controls at 110px are unusable. */
 .rte-video-tile {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  width: 170px; height: 110px; padding: 8px; box-sizing: border-box;
-  border: 1px solid var(--border); border-radius: 4px; background: var(--surface-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1);
+  width: 170px; height: 110px; padding: var(--space-2); box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2);
   font: inherit; color: var(--text-2); cursor: pointer; line-height: 1.3;
+  transition: border-color var(--ease), color var(--ease);
 }
 .rte-video-tile:hover { border-color: var(--primary); color: var(--primary); }
-.rte-video-play { font-size: 22px; line-height: 1; }
-.rte-video-name { font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rte-video-player { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: 6px; }
-.rte-editor ul, .rte-editor ol { margin: 4px 0; padding-left: 22px; }
-.detail-label { font-size: 12px; font-weight: 600; color: var(--muted); }
-.detail-value { font-weight: 500; padding: 4px 0; }
-.box-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-.count { font-size: 12px; color: var(--muted); background: #ebecf0; border-radius: 10px; padding: 0 7px; font-weight: 600; letter-spacing: 0; }
+/* Sizes the svg inside, not the <app-icon> host: the host is an inline box that the svg's own
+   em-based rule would otherwise keep at text size. */
+.rte-video-play .icon { width: 26px; height: 26px; }
+.rte-video-name { font-size: var(--fs-sm); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rte-video-player { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: var(--radius); }
+.rte-editor ul, .rte-editor ol { margin: var(--space-1) 0; padding-left: 22px; }
+.detail-label { font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
+.detail-value { font-weight: 500; padding: var(--space-1) 0; }
+.box-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); flex-wrap: wrap; }
+.count { font-size: var(--fs-sm); color: var(--muted); background: var(--neutral-100); border-radius: var(--radius-pill); padding: 0 7px; font-weight: 600; letter-spacing: 0; }
 
-.comments { margin-top: 18px; }
-.comment { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-.comment-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 2px; }
-.avatar { width: 30px; height: 30px; border-radius: 50%; background: #5e4db2; color: #fff; font-size: 11px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
-.comment-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.comment-form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.comments { margin-top: var(--space-4); }
+.comment { display: flex; gap: var(--space-2); padding: var(--space-2) 0; border-bottom: 1px solid var(--border); }
+.comment-head { display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; margin-bottom: 2px; }
+.comment-form { margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.comment-form-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .author-input { max-width: 220px; }
 
 /* ---------- Modal & toasts ---------- */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(9,30,66,.54); display: grid; place-items: center; z-index: 100; padding: 16px; }
-.modal { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-lg); width: 100%; max-width: 600px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(9, 30, 66, .54); display: grid; place-items: center; z-index: 100; padding: var(--space-4); }
+.modal { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 600px; max-height: calc(100vh - var(--space-6)); display: flex; flex-direction: column; }
 .modal-wide { max-width: 980px; }
-.modal-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px 8px; }
-.modal-header h2 { margin: 0; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.modal-body { padding: 8px 20px 16px; overflow: auto; }
-.modal-footer { display: flex; align-items: center; gap: 8px; justify-content: flex-end; padding: 12px 20px; border-top: 1px solid var(--border); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5) var(--space-2); }
+.modal-header h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-body { padding: var(--space-2) var(--space-5) var(--space-4); overflow: auto; }
+.modal-footer { display: flex; align-items: center; gap: var(--space-2); justify-content: flex-end; padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border); }
 /* Pushed to the far left so the buttons stay grouped on the right. */
 .modal-footer .footer-note { margin-right: auto; }
+
 /* ---------- Picture viewer ---------- */
 /* Above .modal-backdrop (z-index 100) so it covers the ticket dialog it opens from. */
-.viewer { position: fixed; inset: 0; z-index: 200; background: rgba(68,68,68,.86); display: grid; place-items: center; overflow: hidden; }
-.viewer-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: rgba(40,40,40,.72); color: #fff; }
-.viewer-name { font-size: 13px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.viewer-zoom { font: 600 12px ui-monospace, monospace; min-width: 52px; text-align: center; }
+.viewer { position: fixed; inset: 0; z-index: 200; background: rgba(68, 68, 68, .86); display: grid; place-items: center; overflow: hidden; }
+.viewer-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: rgba(40, 40, 40, .72); color: var(--on-dark); }
+.viewer-name { font-size: var(--fs-md); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-zoom { font: 600 var(--fs-sm) var(--font-mono); min-width: 52px; text-align: center; }
 .viewer-bar .icon-btn { color: #dbe3ef; }
-.viewer-bar .icon-btn:hover:not(:disabled) { background: rgba(255,255,255,.16); color: #fff; }
+.viewer-bar .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .16); color: var(--on-dark); }
 .viewer-bar .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
-.viewer-bar .btn-ghost { color: #dbe3ef; border-color: rgba(255,255,255,.35); }
-.viewer-bar .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+.viewer-bar .btn-ghost { color: #dbe3ef; border-color: rgba(255, 255, 255, .35); }
+.viewer-bar .btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .16); }
 /* touch-action:none so pinch and drag reach the component instead of scrolling the page. */
 .viewer-img { max-width: 92vw; max-height: 84vh; transform-origin: center center; user-select: none; -webkit-user-drag: none; will-change: transform; touch-action: none; }
 
-.info-list { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 12px 0 0; }
-.info-list dt { color: var(--muted); font-size: 13px; }
+.info-list { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-4); margin: var(--space-3) 0 0; }
+.info-list dt { color: var(--muted); font-size: var(--fs-md); }
 .info-list dd { margin: 0; }
 
-.toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 200; max-width: min(420px, calc(100vw - 32px)); }
-.toast { display: flex; gap: 10px; align-items: flex-start; background: #172b4d; color: #fff; padding: 10px 12px; border-radius: 6px; box-shadow: var(--shadow-lg); }
+.toasts { position: fixed; right: var(--space-4); bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); z-index: 200; max-width: min(420px, calc(100vw - var(--space-6))); }
+.toast { display: flex; gap: var(--space-2); align-items: flex-start; background: var(--text); color: var(--on-dark); padding: var(--space-2) var(--space-3); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .toast p { margin: 0; flex: 1; }
-.toast > span { font-weight: 700; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-size: 12px; }
-.toast-success > span { background: #0ca30c; }
-.toast-error > span { background: #d03b3b; }
+.toast-dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; color: var(--on-dark); }
+.toast-success .toast-dot { background: #0ca30c; }
+.toast-error .toast-dot { background: #d03b3b; }
 .toast .icon-btn { color: #c7d1e0; }
-
-/* ---------- Responsive ---------- */
-@media (max-width: 700px) {
-  .topbar, .page { padding-left: 16px; padding-right: 16px; }
-  .details-grid { grid-template-columns: 1fr; }
-  .search { max-width: none; }
-  .toolbar select { flex: 1; }
-  /* min-width would otherwise push the third filter off a narrow row. */
-  .toolbar .filter-menu { flex: 1; }
-  .toolbar .filter-button { min-width: 0; width: 100%; }
-}
+.toast .icon-btn:hover { background: rgba(255, 255, 255, .16); color: var(--on-dark); }
 
 /* ---------- Auth ---------- */
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
-.auth-card { width: 100%; max-width: 400px; padding: 28px; margin: 0; }
-.auth-card h1 { font-size: 1.35rem; margin: 18px 0 6px; }
-.auth-card .form { margin-top: 14px; }
-.auth-brand .brand-logo { height: 120px; margin: 0 auto; }
-.auth-help { margin: 16px 0 0; text-align: center; }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); }
+.auth-card { width: 100%; max-width: 400px; padding: var(--space-5); margin: 0; }
+.auth-card h1 { font-size: 20px; margin: var(--space-4) 0 var(--space-1); }
+.auth-card .form { margin-top: var(--space-3); }
+/* The one place the mark is the subject rather than chrome, so it is the one place it is large. */
+.auth-brand { justify-content: center; }
+/* Large enough that the lockup's "DOCUMENTATION" line is actually legible — below about 70px
+   it degrades into the smudge that made the mark unusable in the top bar. */
+.auth-brand .brand-logo { height: 76px; }
+.auth-help { margin: var(--space-4) 0 0; text-align: center; }
 /* A rule with the word "or" sitting in a gap in the middle of it. */
-.auth-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; color: var(--muted); font-size: 12px; }
+.auth-or { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); color: var(--muted); font-size: var(--fs-sm); }
 .auth-or::before, .auth-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
 
 /* ---------- Guest tour ---------- */
 .guest-bar {
-  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
-  padding: 7px 16px; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2); flex-wrap: wrap;
+  padding: 7px var(--space-4); font-size: var(--fs-md);
   background: #fff7e6; color: #7a4f01; border-bottom: 1px solid #f5d9a0;
 }
 .link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--primary); text-decoration: underline; cursor: pointer; }
 .btn-block { width: 100%; height: 38px; }
-.field-error { color: var(--danger); font-size: 12px; margin: -6px 0 0; }
+.field-error { color: var(--danger); font-size: var(--fs-sm); margin: -6px 0 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- User menu ---------- */
 .user-menu { position: relative; }
-.user-button { display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); cursor: pointer; padding: 3px 8px 3px 3px; border-radius: 20px; }
-.user-button:hover, .user-button[aria-expanded="true"] { background: #ebecf0; }
+.user-button { display: flex; align-items: center; gap: var(--space-2); border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); cursor: pointer; padding: 3px var(--space-2) 3px 3px; border-radius: var(--radius-pill); transition: background var(--ease); }
+.user-button:hover, .user-button[aria-expanded="true"] { background: var(--neutral-100); }
+.user-button .icon-caret { color: var(--muted); }
 .user-name { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); min-width: 220px; padding: 6px; z-index: 50; display: flex; flex-direction: column; }
-.menu-header { display: flex; flex-direction: column; padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
-.menu a, .menu button { text-align: left; border: 0; background: transparent; font: inherit; color: var(--text); padding: 8px 10px; border-radius: 6px; cursor: pointer; text-decoration: none; }
-.menu a:hover, .menu button:hover { background: #f1f2f4; text-decoration: none; }
-.check { display: flex !important; flex-direction: row !important; align-items: center; gap: 6px; font-weight: 400 !important; cursor: pointer; white-space: nowrap; }
+.menu { position: absolute; right: 0; top: calc(100% + var(--space-1)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); min-width: 220px; padding: var(--space-1); z-index: 50; display: flex; flex-direction: column; }
+.menu-header { display: flex; flex-direction: column; padding: var(--space-2) var(--space-2) var(--space-2); border-bottom: 1px solid var(--border); margin-bottom: var(--space-1); }
+.menu a, .menu button { text-align: left; border: 0; background: transparent; font: inherit; color: var(--text); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; text-decoration: none; transition: background var(--ease); }
+.menu a:hover, .menu button:hover { background: var(--neutral-50); text-decoration: none; }
+.check { display: flex !important; flex-direction: row !important; align-items: center; gap: var(--space-1); font-weight: 400 !important; cursor: pointer; white-space: nowrap; }
 .check input { width: auto; }
 
 /* ---------- People ---------- */
-.person { display: inline-flex; align-items: center; gap: 8px; }
+.person { display: inline-flex; align-items: center; gap: var(--space-2); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--avatar-bg, var(--purple)); color: var(--on-dark); font-size: var(--fs-xs); font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
 .avatar-sm { width: 22px; height: 22px; font-size: 9px; }
-.role { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; }
-.role-admin { background: #f3f0ff; color: #5e4db2; }
-.role-developer { background: #e9f2ff; color: #0c66e4; }
-.role-tester { background: #e3fcef; color: #216e4e; }
-.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a5adba; margin-right: 4px; }
-.status-dot.active { background: #22a06b; }
+/*
+ * Eight tones, picked from the name by `avatarTone()` so the same person keeps the same colour
+ * everywhere. Every avatar was one purple before, which turned a column of them into a single
+ * stripe and made the initials the only thing distinguishing anybody. All eight are dark enough
+ * for white initials at 4.5:1.
+ */
+.avatar-t0 { --avatar-bg: var(--purple); }
+.avatar-t1 { --avatar-bg: #0055cc; }
+.avatar-t2 { --avatar-bg: #216e4e; }
+.avatar-t3 { --avatar-bg: #a54800; }
+.avatar-t4 { --avatar-bg: #ae2e24; }
+.avatar-t5 { --avatar-bg: #206a83; }
+.avatar-t6 { --avatar-bg: #4c6b1f; }
+.avatar-t7 { --avatar-bg: #943d73; }
+
+.role { display: inline-block; font-size: var(--fs-xs); font-weight: 700; padding: 2px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; }
+.role-admin { background: var(--purple-soft); color: var(--purple); }
+.role-developer { background: var(--primary-soft); color: var(--primary); }
+.role-tester { background: #e3fcef; color: var(--state-closed-bg); }
+.status-dot { display: inline-block; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: #a5adba; margin-right: var(--space-1); }
+.status-dot.active { background: var(--success); }
 .row-inactive td { color: var(--muted); }
-.w-actions { width: 1%; }
 .actions { text-align: right; }
 
 /* ---------- Ticket Details: audit, tabs, history ---------- */
-.audit { margin: 12px 0 0; }
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-top: 18px; }
-.tabs button { border: 0; background: transparent; font: inherit; font-weight: 600; color: var(--muted); padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; gap: 6px; align-items: center; }
+.audit { margin: var(--space-3) 0 0; }
+.tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border); margin-top: var(--space-4); }
+.tabs button { border: 0; background: transparent; font: inherit; font-weight: 600; color: var(--muted); padding: var(--space-2) var(--space-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; gap: var(--space-1); align-items: center; transition: color var(--ease), border-color var(--ease); }
 .tabs button:hover { color: var(--text); }
 .tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
-.tabs + .comments, .tabs + .history { margin-top: 6px; }
-.comment-compose { display: flex; gap: 10px; align-items: flex-start; }
-.history-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
-.change { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: 4px; }
+.tabs + .comments, .tabs + .history { margin-top: var(--space-1); }
+.comment-compose { display: flex; gap: var(--space-2); align-items: flex-start; }
+.history-row { display: flex; gap: var(--space-2); align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.change { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; margin-left: var(--space-1); }
 .change .old { text-decoration: line-through; color: var(--muted); }
-.change .new { background: var(--primary-soft); color: var(--primary-hover); border-radius: 4px; padding: 0 6px; }
-
-@media (max-width: 700px) {
-  .user-name { display: none; }
-}
+.change .new { background: var(--primary-soft); color: var(--primary-hover); border-radius: var(--radius-sm); padding: 0 var(--space-1); }
+.change .icon-arrow-right { color: var(--muted); width: 14px; }
 
 /* ---------- Read-only ticket (project Viewers) ---------- */
 .tag-input-readonly { background: var(--surface-2); cursor: default; }
 .rte-editor-readonly { min-height: 0; background: var(--surface-2); cursor: default; }
-.rte-pic-caption { font-size: 12px; color: var(--text-2); text-align: center; line-height: 1.3; }
+.rte-pic-caption { font-size: var(--fs-sm); color: var(--text-2); text-align: center; line-height: 1.3; }
 
 /* ---------- Description template sections ---------- */
 .rte-editor h4.rte-section {
-  margin: 14px 0 4px; padding-bottom: 3px; border-bottom: 1px solid var(--border);
-  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-2);
+  margin: var(--space-3) 0 var(--space-1); padding-bottom: 3px; border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-2);
 }
 .rte-editor h4.rte-section:first-child { margin-top: 0; }
-.rte-editor h4.rte-section + p, .rte-editor h4.rte-section + ol { margin: 0 0 4px; }
-.folder-search { padding: 5px 8px; font-size: 13px; margin-bottom: 4px; }
-.folder-empty { padding: 6px 8px; margin: 0; }
-/* Delete sits beside the folder button, not inside it: a button cannot contain a button. */
-.folder-row { display: flex; align-items: center; gap: 2px; }
-.folder-row .folder-item { flex: 1; min-width: 0; }
-.folder-del { flex: 0 0 auto; width: 24px; height: 24px; font-size: 15px; opacity: 0; transition: opacity .12s; }
-.folder-row:hover .folder-del, .folder-del:focus-visible { opacity: 1; }
-.folder-del:hover:not(:disabled) { color: var(--danger); background: #fbe9e7; }
-.folder-del:disabled { opacity: 0; cursor: not-allowed; }
-.folder-row:hover .folder-del:disabled { opacity: .35; }
+.rte-editor h4.rte-section + p, .rte-editor h4.rte-section + ol { margin: 0 0 var(--space-1); }
 
 /* ---------- Ticket type glyph ---------- */
 .type-icon { width: 17px; height: 17px; flex: 0 0 auto; }
@@ -480,16 +658,43 @@ select.state-select { font-weight: 600; }
 .type-chip.type-bug { color: #de350b; }
 .type-chip.type-enhancement { color: #ffab00; }
 .type-chip.type-issue { color: #5243aa; }
-/* The list shows the glyph alone, so the column only needs to be as wide as one icon. */
 /*
  * Type and ID hug the left edge — left-aligned and with their inner padding trimmed — so the
  * space they were holding goes to the Title, which is the column people actually read.
- * Written as `.table th/td` to outrank the table's own 9px 10px padding.
+ * Written as `.table th/td` to outrank the table's own cell padding.
  */
 .table th.col-type, .table td.col-type {
-  width: 1%; white-space: nowrap; text-align: left; padding-left: 12px; padding-right: 2px;
+  width: 1%; white-space: nowrap; text-align: left; padding-left: var(--space-3); padding-right: 2px;
 }
 .table th.col-id, .table td.col-id {
-  width: 1%; white-space: nowrap; padding-left: 4px; padding-right: 12px;
+  width: 1%; white-space: nowrap; padding-left: var(--space-1); padding-right: var(--space-3);
 }
 .col-type .type-chip { gap: 0; }
+
+/* ---------- Responsive ---------- */
+/* Below tablet the folder rail becomes a horizontal strip so the table keeps the full width. */
+@media (max-width: 860px) {
+  .folder-layout { flex-direction: column; }
+  .folder-rail { flex: 1 1 auto; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .folder-rail .section-title { width: 100%; }
+  .folder-item { width: auto; }
+}
+
+/* The single phone block. There used to be two of these, 70 lines apart, which is how a rule for
+   the same breakpoint ended up in the middle of the People section. */
+@media (max-width: 700px) {
+  .topbar, .page { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .page { padding-top: var(--space-4); }
+  .details-grid { grid-template-columns: 1fr; }
+  /* The search takes the whole first row: sharing it with a filter leaves both too narrow to
+     read their own placeholder. */
+  .search { max-width: none; }
+  .search-wrap { max-width: none; flex: 1 1 100%; }
+  .toolbar select { flex: 1; }
+  /* min-width would otherwise push the third filter off a narrow row. */
+  .toolbar .filter-menu { flex: 1; }
+  .toolbar .filter-button { min-width: 0; width: 100%; }
+  .user-name { display: none; }
+  .modal-header, .modal-body, .modal-footer { padding-left: var(--space-4); padding-right: var(--space-4); }
+  .project-head { gap: var(--space-2); margin-bottom: var(--space-4); }
+}

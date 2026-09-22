@@ -53,7 +53,7 @@ import { TagInput } from './tag-input';
         <div class="field">
           <span class="field-label">Description</span>
           <app-rich-text [(value)]="draft.description" [projectId]="projectId()"
-            placeholder="Describe the issue, or press 📋 Template. Paste screenshots or videos here." />
+            placeholder="Describe the issue, or press Template. Paste screenshots or videos here." />
         </div>
       </form>
       <ng-container modal-actions>

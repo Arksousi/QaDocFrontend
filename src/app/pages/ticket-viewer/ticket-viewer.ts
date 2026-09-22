@@ -3,7 +3,7 @@ import { Component, HostListener, WritableSignal, computed, effect, inject, inpu
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { Folder, Project, STATES, Suggestions, TICKET_TYPES, Ticket, UserOption, canEditTickets, canManageMembers, initials, slug } from '../../core/models';
+import { Folder, Project, STATES, Suggestions, TICKET_TYPES, Ticket, UserOption, avatarTone, canEditTickets, canManageMembers, initials, slug } from '../../core/models';
 import { AuthService } from '../../core/auth.service';
 import { ToastService } from '../../core/toast.service';
 import { TicketCreate } from '../../shared/ticket-create';
@@ -11,6 +11,7 @@ import { TicketDetails } from '../../shared/ticket-details';
 import { Modal } from '../../shared/modal';
 import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
+import { Icon } from '../../shared/icon';
 
 type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'activityDate';
 type FilterMenu = 'state' | 'type' | 'tag';
@@ -21,11 +22,11 @@ const summarise = (picked: string[], plural: string) =>
 
 @Component({
   selector: 'app-ticket-viewer',
-  imports: [FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon],
+  imports: [FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
   template: `
     <app-topbar [crumb]="project()?.projectName ?? null">
       @if (canEdit()) {
-        <button class="btn btn-primary" (click)="creating.set(true)">+ Create ticket</button>
+        <button class="btn btn-primary" (click)="creating.set(true)"><app-icon name="plus" /> Create ticket</button>
       }
     </app-topbar>
 
@@ -62,21 +63,24 @@ const summarise = (picked: string[], plural: string) =>
             </button>
             @if (canManageFolders()) {
               <button class="icon-btn folder-del" (click)="removeFolder(f)" [disabled]="deletingFolder() || !!whyNotDeletable(f)"
-                [title]="whyNotDeletable(f) || 'Delete folder'" [attr.aria-label]="'Delete folder ' + f.folderName">×</button>
+                [title]="whyNotDeletable(f) || 'Delete folder'" [attr.aria-label]="'Delete folder ' + f.folderName"><app-icon name="close" /></button>
             }
           </div>
         } @empty {
           <p class="muted small folder-empty">No folders match “{{ folderSearch() }}”.</p>
         }
         @if (canManageFolders()) {
-          <button class="folder-item folder-add" (click)="openAddFolder()">+ Add folder</button>
+          <button class="folder-item folder-add" (click)="openAddFolder()"><app-icon name="plus" /> Add folder</button>
         }
       </nav>
 
       <section class="card grow">
         <div class="toolbar">
-          <input class="search" type="search" placeholder="Search title, assignee or key (RMS-V1-0001)…" aria-label="Search tickets"
-            [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          <span class="search-wrap">
+            <app-icon name="search" />
+            <input type="search" placeholder="Search title, assignee or key (RMS-V1-0001)…" aria-label="Search tickets"
+              [ngModel]="search()" (ngModelChange)="search.set($event)" />
+          </span>
           <!-- All three filters tick several values at once, so "everything still open", "bugs and
                issues" or "any of these three tags" is one look rather than several. Nothing ticked
                means no filter on that field, the same as the old "All states"/"All types" option. -->
@@ -84,14 +88,17 @@ const summarise = (picked: string[], plural: string) =>
             <button type="button" class="filter-button" (click)="toggleMenu('state')"
               [class.active]="state().length > 0" [attr.aria-expanded]="openMenu() === 'state'" aria-haspopup="true">
               <span>{{ stateLabel() }}</span>
-              <span class="filter-caret" aria-hidden="true">▾</span>
+              <span class="filter-caret"><app-icon name="caret" /></span>
             </button>
             @if (openMenu() === 'state') {
               <div class="filter-panel" role="group" aria-label="Filter by state">
                 @for (s of states; track s) {
                   <label class="filter-option">
                     <input type="checkbox" [checked]="state().includes(s)" (change)="toggleState(s)" />
-                    <span class="state state-{{ slugOf(s) }}">{{ s }}</span>
+                    <span class="filter-marker">
+                      <span class="filter-swatch state-{{ slugOf(s) }}"></span>
+                    </span>
+                    <span class="filter-label">{{ s }}</span>
                   </label>
                 }
                 @if (state().length > 0) {
@@ -104,15 +111,17 @@ const summarise = (picked: string[], plural: string) =>
             <button type="button" class="filter-button" (click)="toggleMenu('type')"
               [class.active]="type().length > 0" [attr.aria-expanded]="openMenu() === 'type'" aria-haspopup="true">
               <span>{{ typeLabel() }}</span>
-              <span class="filter-caret" aria-hidden="true">▾</span>
+              <span class="filter-caret"><app-icon name="caret" /></span>
             </button>
             @if (openMenu() === 'type') {
               <div class="filter-panel" role="group" aria-label="Filter by type">
                 @for (t of ticketTypes; track t) {
                   <label class="filter-option">
                     <input type="checkbox" [checked]="type().includes(t)" (change)="toggleType(t)" />
-                    <app-type-icon [type]="t" />
-                    <span>{{ t }}</span>
+                    <span class="filter-marker type-chip type-{{ slugOf(t) }}">
+                      <app-type-icon [type]="t" />
+                    </span>
+                    <span class="filter-label">{{ t }}</span>
                   </label>
                 }
                 @if (type().length > 0) {
@@ -125,14 +134,17 @@ const summarise = (picked: string[], plural: string) =>
             <button type="button" class="filter-button" (click)="toggleMenu('tag')"
               [class.active]="tag().length > 0" [attr.aria-expanded]="openMenu() === 'tag'" aria-haspopup="true">
               <span>{{ tagLabel() }}</span>
-              <span class="filter-caret" aria-hidden="true">▾</span>
+              <span class="filter-caret"><app-icon name="caret" /></span>
             </button>
             @if (openMenu() === 'tag') {
               <div class="filter-panel filter-panel-scroll" role="group" aria-label="Filter by tag">
                 @for (t of suggestions().tags; track t) {
-                  <label class="filter-option">
+                  <!-- The panel is the width of the button, so a long tag ellipsizes; the title
+                       attribute is how you still read the whole thing. -->
+                  <label class="filter-option" [title]="t">
                     <input type="checkbox" [checked]="tag().includes(t)" (change)="toggleTag(t)" />
-                    <span class="tag">{{ t }}</span>
+                    <span class="filter-marker"><app-icon name="tag" /></span>
+                    <span class="filter-label">{{ t }}</span>
                   </label>
                 } @empty {
                   <p class="muted small filter-empty">No tags used in this project yet.</p>
@@ -153,7 +165,24 @@ const summarise = (picked: string[], plural: string) =>
         </div>
 
         @if (loading()) {
-          <p class="muted pad">Loading…</p>
+          <!-- One skeleton row per ticket row, in the same columns, so the table does not resize
+               under the pointer the instant the results arrive. -->
+          <div class="table-wrap" aria-hidden="true">
+            <table class="table">
+              <tbody>
+                @for (i of placeholders; track i) {
+                  <tr class="skeleton-row">
+                    <td class="col-type"><div class="skeleton skeleton-avatar"></div></td>
+                    <td class="col-id"><div class="skeleton skeleton-chip"></div></td>
+                    <td class="title-cell"><div class="skeleton skeleton-line w-60"></div></td>
+                    <td class="col-assignee"><div class="skeleton skeleton-avatar"></div></td>
+                    <td><div class="skeleton skeleton-chip"></div></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="sr-only" role="status">Loading tickets…</p>
         } @else if (tickets().length === 0) {
           <div class="empty">
             @if (hasFilters()) {
@@ -173,7 +202,9 @@ const summarise = (picked: string[], plural: string) =>
                     <th [class]="col.cls" [attr.aria-sort]="sortKey() === col.key ? (sortAsc() ? 'ascending' : 'descending') : 'none'">
                       <button class="th-sort" (click)="sortBy(col.key)">
                         {{ col.label }}
-                        <span class="sort-arrow" aria-hidden="true">{{ sortKey() === col.key ? (sortAsc() ? '▲' : '▼') : '' }}</span>
+                        <span class="sort-arrow">
+                          @if (sortKey() === col.key) { <app-icon [name]="sortAsc() ? 'sort-asc' : 'sort-desc'" /> }
+                        </span>
                       </button>
                     </th>
                   }
@@ -194,12 +225,14 @@ const summarise = (picked: string[], plural: string) =>
                     </td>
                     <td class="title-cell">
                       {{ t.title }}
-                      @if (t.commentCount) { <span class="muted small" [title]="t.commentCount + ' comment(s)'">💬 {{ t.commentCount }}</span> }
+                      @if (t.commentCount) { <span class="muted small comment-count" [title]="t.commentCount + ' comment(s)'">
+                          <app-icon name="comment" class="icon-inline" />{{ t.commentCount }}
+                        </span> }
                     </td>
                     <td class="col-assignee">
                       @if (t.assignedToName) {
                         <span class="person" [title]="t.assignedToName">
-                          <span class="avatar avatar-sm" aria-hidden="true">{{ initialsOf(t.assignedToName) }}</span>
+                          <span class="avatar avatar-sm avatar-t{{ toneOf(t.assignedToName) }}" aria-hidden="true">{{ initialsOf(t.assignedToName) }}</span>
                           <span class="person-name">{{ t.assignedToName }}</span>
                         </span>
                       } @else { <span class="muted">Unassigned</span> }
@@ -312,6 +345,9 @@ export class TicketViewerPage {
   readonly ticketTypes = TICKET_TYPES;
   readonly slugOf = slug;
   readonly initialsOf = initials;
+  readonly toneOf = avatarTone;
+  /** Rows the skeleton draws while the first page of tickets is in flight. */
+  readonly placeholders = [0, 1, 2, 3, 4, 5, 6, 7];
   readonly columns: { key: SortKey; label: string; cls: string }[] = [
     // Title takes whatever width is left; every other column shrinks to its content.
     { key: 'ticketType', label: 'Type', cls: 'col-type' },

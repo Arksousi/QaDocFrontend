@@ -1,15 +1,19 @@
 import { Component, ElementRef, input, model, signal, viewChild } from '@angular/core';
+import { Icon } from './icon';
 
 /** Chip-style editor for free-text tags. Enter or comma adds a tag; Backspace on an empty box removes the last one. */
 @Component({
   selector: 'app-tag-input',
+  imports: [Icon],
   template: `
     <div class="tag-input" [class.tag-input-readonly]="readonly()" (click)="box()?.nativeElement.focus()">
       @for (tag of tags(); track tag) {
         <span class="tag">
           {{ tag }}
           @if (!readonly()) {
-            <button type="button" class="tag-remove" (click)="remove(tag); $event.stopPropagation()" [attr.aria-label]="'Remove tag ' + tag">×</button>
+            <button type="button" class="tag-remove" (click)="remove(tag); $event.stopPropagation()" [attr.aria-label]="'Remove tag ' + tag">
+              <app-icon name="close" />
+            </button>
           }
         </span>
       } @empty {

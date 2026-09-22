@@ -172,3 +172,21 @@ export function slug(value: string | number | null | undefined): string {
 export function initials(name: string | null | undefined): string {
   return (name ?? '').split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?';
 }
+
+/** How many `.avatar-t*` tones `styles.css` defines. */
+const AVATAR_TONES = 8;
+
+/**
+ * Picks one of the eight avatar tones from the name itself, so the same person is the same colour
+ * on every page and in every session without the server storing one. Every avatar used to be the
+ * same purple, which made a column of them one indistinguishable stripe.
+ *
+ * Deterministic and case-insensitive; the hash only has to spread names across eight buckets, so
+ * a plain rolling sum is enough.
+ */
+export function avatarTone(name: string | null | undefined): number {
+  const key = (name ?? '').trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) % 9973;
+  return hash % AVATAR_TONES;
+}

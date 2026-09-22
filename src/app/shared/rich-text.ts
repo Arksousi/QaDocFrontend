@@ -3,6 +3,7 @@ import { DomSanitizer } from '@angular/platform-browser';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { ToastService } from '../core/toast.service';
+import { Icon } from './icon';
 import { ImageViewer } from './image-viewer';
 import { Modal } from './modal';
 
@@ -106,7 +107,7 @@ export function toRichText(value: string | null | undefined): string {
  */
 @Component({
   selector: 'app-rich-text',
-  imports: [ImageViewer, Modal],
+  imports: [ImageViewer, Modal, Icon],
   template: `
     <div class="rte" [class.dragging]="dragging()"
       (dragover)="onDragOver($event)" (dragleave)="dragging.set(false)" (drop)="onDrop($event)">
@@ -114,15 +115,23 @@ export function toRichText(value: string | null | undefined): string {
       <div class="rte-toolbar" role="toolbar" aria-label="Description formatting">
         <button type="button" class="rte-btn" title="Bold (Ctrl+B)" aria-label="Bold" (mousedown)="$event.preventDefault()" (click)="format('bold')"><b>B</b></button>
         <button type="button" class="rte-btn" title="Italic (Ctrl+I)" aria-label="Italic" (mousedown)="$event.preventDefault()" (click)="format('italic')"><i>I</i></button>
-        <button type="button" class="rte-btn" title="Bulleted list" (mousedown)="$event.preventDefault()" (click)="format('insertUnorderedList')">• List</button>
+        <button type="button" class="rte-btn" title="Bulleted list" (mousedown)="$event.preventDefault()" (click)="format('insertUnorderedList')">
+          <app-icon name="bullets" /> List
+        </button>
         <button type="button" class="rte-btn" title="Add the Actual Result / Expected Result / Steps to Reproduce sections"
-          (mousedown)="$event.preventDefault()" (click)="insertTemplate()">📋 Template</button>
+          (mousedown)="$event.preventDefault()" (click)="insertTemplate()">
+          <app-icon name="template" /> Template
+        </button>
         <span class="rte-sep" aria-hidden="true"></span>
-        <button type="button" class="rte-btn" (mousedown)="$event.preventDefault()" (click)="picker.click()">🖼 Add picture</button>
+        <button type="button" class="rte-btn" (mousedown)="$event.preventDefault()" (click)="picker.click()">
+          <app-icon name="picture" /> Add picture
+        </button>
         <input #picker type="file" accept="image/*" multiple hidden (change)="onPickPictures(picker)" />
         @if (projectId()) {
           <button type="button" class="rte-btn" [disabled]="uploading()"
-            (mousedown)="$event.preventDefault()" (click)="videoPicker.click()">🎬 Add video</button>
+            (mousedown)="$event.preventDefault()" (click)="videoPicker.click()">
+            <app-icon name="video" /> Add video
+          </button>
           <input #videoPicker type="file" accept="video/*" multiple hidden (change)="onPickVideos(videoPicker)" />
         }
         <span class="rte-hint">
@@ -143,7 +152,7 @@ export function toRichText(value: string | null | undefined): string {
               } @else {
                 <button type="button" class="rte-pic-open rte-video-tile" (click)="playing.set(item)"
                   [attr.aria-label]="'Play ' + caption(item)" [title]="caption(item)">
-                  <span class="rte-video-play" aria-hidden="true">▶</span>
+                  <app-icon name="play" class="rte-video-play" />
                   <span class="rte-video-name">{{ item.name }}</span>
                 </button>
               }
@@ -151,7 +160,7 @@ export function toRichText(value: string | null | undefined): string {
                 @if (item.title) { <figcaption class="rte-pic-caption">{{ item.title }}</figcaption> }
               } @else {
                 <button type="button" class="rte-pic-remove" (click)="removeMedia(i)"
-                  [attr.aria-label]="'Remove ' + caption(item)" title="Remove">×</button>
+                  [attr.aria-label]="'Remove ' + caption(item)" title="Remove"><app-icon name="close" /></button>
                 <figcaption>
                   <input class="rte-pic-title" type="text" [value]="item.title" [attr.maxlength]="maxTitle"
                     placeholder="Add a title…" [attr.aria-label]="'Title for ' + caption(item)"

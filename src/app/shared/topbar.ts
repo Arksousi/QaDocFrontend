@@ -1,20 +1,25 @@
 import { Component, ElementRef, HostListener, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth.service';
-import { initials } from '../core/models';
+import { avatarTone, initials } from '../core/models';
 import { ChangePassword } from './change-password';
+import { Icon } from './icon';
 
 @Component({
   selector: 'app-topbar',
-  imports: [RouterLink, ChangePassword],
+  imports: [RouterLink, ChangePassword, Icon],
   template: `
     <header class="topbar">
-      <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc"><img class="brand-logo" src="logo.svg" alt="" /></a>
+      <!-- Mark plus the name as real text: the full lockup's wordmark is unreadable at bar size. -->
+      <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc">
+        <img class="brand-logo" src="logo-mark.svg" alt="" />
+        <span class="brand-name">QaDoc</span>
+      </a>
       <!-- Only a way back. The page below states what you are looking at, once, in full size —
            repeating it up here is what made this bar look cluttered. -->
       @if (crumb()) {
         <a class="back-link" routerLink="/">
-          <span class="back-arrow" aria-hidden="true">←</span>
+          <app-icon name="back" />
           <span>Projects</span>
         </a>
       }
@@ -23,9 +28,9 @@ import { ChangePassword } from './change-password';
         @if (auth.user(); as me) {
           <div class="user-menu">
             <button class="user-button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-haspopup="menu">
-              <span class="avatar" aria-hidden="true">{{ initialsOf(me.displayName) }}</span>
+              <span class="avatar avatar-t{{ toneOf(me.displayName) }}" aria-hidden="true">{{ initialsOf(me.displayName) }}</span>
               <span class="user-name">{{ me.displayName }}</span>
-              <span aria-hidden="true">▾</span>
+              <app-icon name="caret" />
             </button>
             @if (menuOpen()) {
               <div class="menu" role="menu">
@@ -71,6 +76,7 @@ export class Topbar {
   readonly menuOpen = signal(false);
   readonly changingPassword = signal(false);
   readonly initialsOf = initials;
+  readonly toneOf = avatarTone;
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {

@@ -1,0 +1,33 @@
+<!--
+  The QA monogram on its own, cropped out of logo.svg's full lockup.
+
+  The lockup sets "DOCUMENTATION" at font-size 14.5 inside a 132-unit viewBox, so anywhere the
+  logo is smaller than about 90px tall that word renders under 10px and collapses into a dotted
+  smudge under the letters. The top bar needs a 30px mark, so it uses this crop and sets the name
+  as real text beside it; the sign-in page, where the logo is big, still uses the full lockup.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="34 30 180 92" role="img" aria-label="QaDoc">
+  <defs>
+    <linearGradient id="markGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e40af" />
+      <stop offset="60%" stop-color="#1d4ed8" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="markCheck" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(40, 20)">
+    <text x="0" y="85"
+          font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-weight="900" font-size="96" fill="url(#markGrad)" letter-spacing="-1">Q</text>
+    <!-- The drop shadow is dropped with the crop: at 30px it only muddies the stroke. -->
+    <path d="M 52 74 L 64 86 L 86 60" fill="none" stroke="url(#markCheck)"
+          stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <text x="96" y="85"
+          font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+          font-weight="900" font-size="96" fill="url(#markGrad)" letter-spacing="-1">A</text>
+  </g>
+</svg>

@@ -1,4 +1,5 @@
 import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Icon } from './icon';
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 8;
@@ -19,6 +20,7 @@ interface Point {
  */
 @Component({
   selector: 'app-image-viewer',
+  imports: [Icon],
   template: `
     <div #surface class="viewer" role="dialog" aria-modal="true" tabindex="-1"
       [attr.aria-label]="alt() || 'Picture'" (pointerdown)="onBackdrop($event)" (wheel)="onWheel($event)">
@@ -26,12 +28,12 @@ interface Point {
         <span class="viewer-name">{{ alt() || 'Picture' }}</span>
         <span class="grow"></span>
         <button class="icon-btn" (click)="zoomBy(1 / BUTTON_STEP)" [disabled]="zoom() <= MIN_ZOOM"
-          title="Zoom out" aria-label="Zoom out">−</button>
+          title="Zoom out" aria-label="Zoom out"><app-icon name="zoom-out" /></button>
         <span class="viewer-zoom" aria-live="polite">{{ percent() }}%</span>
         <button class="icon-btn" (click)="zoomBy(BUTTON_STEP)" [disabled]="zoom() >= MAX_ZOOM"
-          title="Zoom in" aria-label="Zoom in">+</button>
+          title="Zoom in" aria-label="Zoom in"><app-icon name="zoom-in" /></button>
         <button class="btn btn-sm btn-ghost" (click)="reset()" [disabled]="zoom() === MIN_ZOOM">Reset</button>
-        <button #close class="icon-btn" (click)="closed.emit()" title="Close (Esc)" aria-label="Close">×</button>
+        <button #close class="icon-btn" (click)="closed.emit()" title="Close (Esc)" aria-label="Close"><app-icon name="close" /></button>
       </div>
 
       <img class="viewer-img" [src]="src()" [alt]="alt()" [style.transform]="transform()" [style.cursor]="cursor()"
