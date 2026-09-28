@@ -19,6 +19,8 @@ export class AuthService {
 
   readonly user = signal<User | null>(null);
   readonly isAdmin = computed(() => this.user()?.role === 'Admin' && !this.isGuest());
+  /** May create projects and open the Leader Dashboard. The API enforces the same pair of roles. */
+  readonly canLead = computed(() => this.isAdmin() || (this.user()?.role === 'Leader' && !this.isGuest()));
   /** A "Continue as a guest" tour: the demo projects, read-only. The API enforces both. */
   readonly isGuest = computed(() => this.user()?.isGuest === true);
   private token: string | null = readToken();

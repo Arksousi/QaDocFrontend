@@ -1,12 +1,15 @@
 export const STATES = ['Open', 'In Progress', 'Resolved', 'Retest', 'Closed'] as const;
 /** Ordered least to most severe; Showstopper sits above Critical. */
 export const IMPACTS = ['Low', 'Medium', 'High', 'Critical', 'Showstopper'] as const;
-/** What someone is across the app. Only Admin grants anything on its own; see PROJECT_ROLES. */
-export const ROLES = ['Admin', 'Developer', 'Tester'] as const;
+/**
+ * What someone is across the app. Admin manages everything; Leader may create projects and sees
+ * the Leader Dashboard. Neither Developer nor Tester grants anything on its own; see PROJECT_ROLES.
+ */
+export const ROLES = ['Admin', 'Leader', 'Developer', 'Tester'] as const;
 /** What kind of work a ticket represents. */
 export const TICKET_TYPES = ['Bug', 'Enhancement', 'Issue'] as const;
-/** Per-project access, ordered least to most capable. */
-export const PROJECT_ROLES = ['Viewer', 'Contributor', 'Manager'] as const;
+/** What a membership can be set to, least to most capable. Managing is not one of them; see ProjectAccess. */
+export const PROJECT_ROLES = ['Viewer', 'Contributor'] as const;
 export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] as const;
 
 export type TicketState = (typeof STATES)[number];
@@ -14,13 +17,18 @@ export type Impact = (typeof IMPACTS)[number];
 export type Role = (typeof ROLES)[number];
 export type TicketType = (typeof TICKET_TYPES)[number];
 export type ProjectRole = (typeof PROJECT_ROLES)[number];
+/**
+ * What the API reports you may do on a project. Manager is never stored: it is an Admin, or a
+ * Leader who is a Contributor there.
+ */
+export type ProjectAccess = ProjectRole | 'Manager';
 
 /** What a role lets you do, so the UI can hide what the API would refuse. */
-export function canEditTickets(role: ProjectRole | null | undefined): boolean {
+export function canEditTickets(role: ProjectAccess | null | undefined): boolean {
   return role === 'Contributor' || role === 'Manager';
 }
 
-export function canManageMembers(role: ProjectRole | null | undefined): boolean {
+export function canManageMembers(role: ProjectAccess | null | undefined): boolean {
   return role === 'Manager';
 }
 
@@ -33,20 +41,60 @@ export interface User {
   isActive: boolean;
   /** True on a guest tour: sample data only, and every write is refused by the API. */
   isGuest?: boolean;
+  /** Unfinished tickets they should hold at once, across all projects; null for no limit. */
+  ticketLimit: number | null;
   createdAt: string;
 }
 
-/** Active user shown in "Assigned To" pickers. */
+/** Active user shown in "Assigned To" pickers, with their load so the picker can warn. */
 export interface UserOption {
   userId: number;
   displayName: string;
   username: string;
+  /** Tickets assigned to them, in any real project, that are not Closed. */
+  openTickets: number;
+  ticketLimit: number | null;
+}
+
+/** One row of the Users Dashboard: an active person's load against their limit. */
+export interface UserWorkload {
+  userId: number;
+  displayName: string;
+  username: string;
+  role: Role;
+  openTickets: number;
+  ticketLimit: number | null;
+}
+
+/**
+ * Whether holding `extra` more tickets would take someone past their limit. A guide only: the
+ * app warns and the API accepts it anyway. No limit means never.
+ */
+export function overLimit(openTickets: number, ticketLimit: number | null | undefined, extra = 0): boolean {
+  return ticketLimit != null && openTickets + extra > ticketLimit;
+}
+
+/** "4/5", or just "4 open" for someone without a limit. */
+export function loadLabel(openTickets: number, ticketLimit: number | null | undefined): string {
+  return ticketLimit != null ? `${openTickets}/${ticketLimit}` : `${openTickets} open`;
 }
 
 export interface LoginResponse {
   token: string;
   expiresAt: string;
   user: User;
+}
+
+/** "actorName assigned ticketKey to you", for the bell. */
+export interface AppNotification {
+  notificationId: number;
+  ticketId: number;
+  projectId: number;
+  ticketKey: string;
+  title: string;
+  actorName: string | null;
+  createdAt: string;
+  isRead: boolean;
 }
 
 export interface AuthStatus {
@@ -64,8 +112,29 @@ export interface Project {
   ticketCount: number;
   openTicketCount: number;
   lastActivity: string;
-  /** The signed-in user's role in this project. Admins are reported as Manager. */
-  myRole: ProjectRole | null;
+  /** What the signed-in user may do here. Admins, and Leaders who contribute, are reported as Manager. */
+  myRole: ProjectAccess | null;
+}
+
+/**
+ * A member's share of a project's tickets, for the Leader Dashboard. Finished means Closed, the same
+ * line the project's open count draws.
+ */
+export interface MemberScore {
+  userId: number;
+  displayName: string;
+  role: ProjectRole;
+  isActive: boolean;
+  /** This project only. */
+  assigned: number;
+  closed: number;
+  /** Their load across every project, measured against ticketLimit. */
+  openTickets: number;
+  ticketLimit: number | null;
+}
+
+export interface ProjectScoreboard extends Project {
+  members: MemberScore[];
 }
 
 /** A file stored outside the description (videos). The description holds only its id. */
@@ -84,6 +153,10 @@ export interface ProjectMember {
   displayName: string;
   username: string;
   role: ProjectRole;
+  /** Their account role. A Leader holding Contributor is who manages the project. */
+  userRole: Role;
+  /** Worked out by the API: an active Leader who is a Contributor here. */
+  canManage: boolean;
   isActive: boolean;
   addedAt: string;
 }
@@ -129,10 +202,8 @@ export interface Ticket {
   title: string;
   description: string | null;
   ticketType: TicketType;
-  assignedToUserId: number | null;
-  assignedToName: string | null;
-  /** Who gave it to the current assignee; null while unassigned. */
-  assignedByName: string | null;
+  /** Everyone working on it, in the order they were added. Empty while unassigned. */
+  assignees: TicketAssignee[];
   state: TicketState;
   priority: number;
   impact: Impact;
@@ -147,13 +218,24 @@ export interface Ticket {
   history: TicketHistoryEntry[];
 }
 
+/** One person a ticket is assigned to, and who put them there. */
+export interface TicketAssignee {
+  userId: number;
+  displayName: string;
+  assignedByName: string | null;
+}
+
+/** The API refuses more; the picker stops offering people at this many. */
+export const MAX_ASSIGNEES = 10;
+
 /** Editable ticket fields, sent on create (with projectId) and update. */
 export interface SaveTicket {
   folderId: number;
   title: string;
   description: string;
   ticketType: TicketType;
-  assignedToUserId: number | null;
+  /** Empty means unassigned. */
+  assignedToUserIds: number[];
   state: TicketState;
   priority: number;
   impact: Impact;

@@ -16,6 +16,7 @@ interface UserDraft {
   password: string;
   role: Role;
   isActive: boolean;
+  ticketLimit: number | null;
 }
 
 /** Admin-only: add people, change roles, deactivate, reset passwords. */
@@ -46,7 +47,7 @@ interface UserDraft {
         <div class="table-wrap">
           <table class="table table-hover">
             <thead>
-              <tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th class="w-actions"></th></tr>
+              <tr><th>Name</th><th>Username</th><th>Role</th><th class="num">Ticket limit</th><th>Status</th><th>Created</th><th class="w-actions"></th></tr>
             </thead>
             <tbody>
               @for (u of filtered(); track u.userId) {
@@ -60,6 +61,7 @@ interface UserDraft {
                   </td>
                   <td class="mono">{{ u.username }}</td>
                   <td><span class="role role-{{ u.role.toLowerCase() }}">{{ u.role }}</span></td>
+                  <td class="num">@if (u.ticketLimit) { {{ u.ticketLimit }} } @else { <span class="muted">—</span> }</td>
                   <td>
                     @if (u.isActive) { <span class="status-dot active"></span> Active } @else { <span class="status-dot"></span> Deactivated }
                   </td>
@@ -72,7 +74,7 @@ interface UserDraft {
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="6" class="muted center">No users match “{{ search() }}”.</td></tr>
+                <tr><td colspan="7" class="muted center">No users match “{{ search() }}”.</td></tr>
               }
             </tbody>
           </table>
@@ -100,6 +102,10 @@ interface UserDraft {
               @for (r of roles; track r) { <option [value]="r">{{ r }}</option> }
             </select>
             <small class="muted">{{ roleHint(d.role) }}</small>
+          </label>
+          <label>Ticket limit <small class="muted">unfinished tickets at once, across all projects; empty for no limit</small>
+            <input name="ticketLimit" type="number" min="1" max="100" step="1" [(ngModel)]="d.ticketLimit" placeholder="No limit" />
+            <small class="muted">Assigning someone past it only warns — it is never refused.</small>
           </label>
           @if (d.userId) {
             <label class="check">
@@ -160,11 +166,11 @@ export class UsersPage implements OnInit {
   }
 
   openAdd() {
-    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Tester', isActive: true });
+    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Tester', isActive: true, ticketLimit: null });
   }
 
   openEdit(u: User) {
-    this.draft.set({ userId: u.userId, username: u.username, displayName: u.displayName, password: '', role: u.role, isActive: u.isActive });
+    this.draft.set({ userId: u.userId, username: u.username, displayName: u.displayName, password: '', role: u.role, isActive: u.isActive, ticketLimit: u.ticketLimit });
   }
 
   openReset(u: User) {
@@ -174,13 +180,15 @@ export class UsersPage implements OnInit {
 
   /** Developer and Tester differ only as a label: what either can do is set per project. */
   roleHint(role: Role) {
-    return role === 'Admin'
-      ? 'Can manage users, and delete any project or ticket.'
-      : `Works on the projects they are added to; their access is set there. “${role}” says which side of QA they are on.`;
+    if (role === 'Admin') return 'Can manage users, and delete any project or ticket.';
+    if (role === 'Leader') return 'Can create projects, and sees the Leader Dashboard for the projects they are on.';
+    return `Works on the projects they are added to; their access is set there. “${role}” says which side of QA they are on.`;
   }
 
   canSave(d: UserDraft) {
     if (!d.displayName.trim()) return false;
+    // An emptied number input binds null, which means "no limit" and is always fine.
+    if (d.ticketLimit != null && !(Number.isInteger(d.ticketLimit) && d.ticketLimit >= 1 && d.ticketLimit <= 100)) return false;
     return d.userId ? true : /^[A-Za-z0-9._-]{3,50}$/.test(d.username.trim()) && d.password.length >= 8;
   }
 
@@ -189,10 +197,10 @@ export class UsersPage implements OnInit {
     this.busy.set(true);
     try {
       if (d.userId) {
-        await this.api.updateUser(d.userId, { displayName: d.displayName.trim(), role: d.role, isActive: d.isActive });
+        await this.api.updateUser(d.userId, { displayName: d.displayName.trim(), role: d.role, isActive: d.isActive, ticketLimit: d.ticketLimit ?? null });
         this.toast.success(`${d.displayName.trim()} updated.`);
       } else {
-        await this.api.createUser({ username: d.username.trim(), displayName: d.displayName.trim(), password: d.password, role: d.role });
+        await this.api.createUser({ username: d.username.trim(), displayName: d.displayName.trim(), password: d.password, role: d.role, ticketLimit: d.ticketLimit ?? null });
         this.toast.success(`${d.displayName.trim()} can now sign in as “${d.username.trim()}”.`);
       }
       this.draft.set(null);

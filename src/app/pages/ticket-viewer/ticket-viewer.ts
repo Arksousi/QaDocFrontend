@@ -13,7 +13,7 @@ import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
 import { Icon } from '../../shared/icon';
 
-type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignedToName' | 'state' | 'tags' | 'activityDate';
+type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignees' | 'state' | 'tags' | 'activityDate';
 type FilterMenu = 'state' | 'type' | 'tag';
 
 /** "All tags" when nothing is ticked, the value itself when one is, a count beyond that. */
@@ -230,10 +230,13 @@ const summarise = (picked: string[], plural: string) =>
                         </span> }
                     </td>
                     <td class="col-assignee">
-                      @if (t.assignedToName) {
-                        <span class="person" [title]="t.assignedToName">
-                          <span class="avatar avatar-sm avatar-t{{ toneOf(t.assignedToName) }}" aria-hidden="true">{{ initialsOf(t.assignedToName) }}</span>
-                          <span class="person-name">{{ t.assignedToName }}</span>
+                      <!-- The first person by name, the rest as a count: the column stays one narrow
+                           track however many share the ticket, and the tooltip lists everyone. -->
+                      @if (t.assignees[0]; as first) {
+                        <span class="person" [title]="assigneeNames(t)">
+                          <span class="avatar avatar-sm avatar-t{{ toneOf(first.displayName) }}" aria-hidden="true">{{ initialsOf(first.displayName) }}</span>
+                          <span class="person-name">{{ first.displayName }}</span>
+                          @if (t.assignees.length > 1) { <span class="count">+{{ t.assignees.length - 1 }}</span> }
                         </span>
                       } @else { <span class="muted">Unassigned</span> }
                     </td>
@@ -276,10 +279,10 @@ const summarise = (picked: string[], plural: string) =>
     }
 
     @if (creating()) {
-      <app-ticket-create [projectId]="projectId()" [folderId]="targetFolderId()" [suggestions]="suggestions()" [users]="users()" (closed)="creating.set(false)" (created)="onCreated($event)" />
+      <app-ticket-create [projectId]="projectId()" [folderId]="targetFolderId()" [suggestions]="suggestions()" [users]="users()" [outsiders]="outsiders()" (closed)="creating.set(false)" (created)="onCreated($event)" />
     }
     @if (ticket(); as id) {
-      <app-ticket-details [ticketId]="id" [suggestions]="suggestions()" [users]="users()" [canEdit]="canEdit()" (closed)="openTicket(null)" (changed)="refresh()" />
+      <app-ticket-details [ticketId]="id" [suggestions]="suggestions()" [users]="users()" [outsiders]="outsiders()" [canEdit]="canEdit()" (closed)="openTicket(null)" (changed)="refresh()" />
     }
   `,
 })
@@ -294,7 +297,7 @@ export class TicketViewerPage {
   readonly ticket = input(null, { transform: (v: unknown) => (v ? Number(v) : null) });
 
   readonly project = signal<Project | null>(null);
-  /** Contributors and Managers may change tickets; Viewers may only read and comment. */
+  /** Contributors (and so anyone managing the project) may change tickets; Viewers may only read and comment. */
   readonly canEdit = computed(() => canEditTickets(this.project()?.myRole));
   readonly tickets = signal<Ticket[]>([]);
   readonly folders = signal<Folder[]>([]);
@@ -322,6 +325,12 @@ export class TicketViewerPage {
   readonly targetFolderId = computed(() => this.folderId() ?? this.folders()[0]?.folderId ?? 0);
   readonly suggestions = signal<Suggestions>({ tags: [] });
   readonly users = signal<UserOption[]>([]);
+  /**
+   * Active people who cannot be assigned yet — outside the project, or only Viewers on it. Offered
+   * in "Assigned To" to those who manage the project; picking one makes them a Contributor.
+   * Everyone else gets an empty list, so their picker is unchanged.
+   */
+  readonly outsiders = signal<UserOption[]>([]);
   readonly loading = signal(true);
   readonly creating = signal(false);
 
@@ -353,7 +362,7 @@ export class TicketViewerPage {
     { key: 'ticketType', label: 'Type', cls: 'col-type' },
     { key: 'ticketId', label: 'ID', cls: 'col-id' },
     { key: 'title', label: 'Title', cls: 'col-grow' },
-    { key: 'assignedToName', label: 'Assigned To', cls: 'col-assignee' },
+    { key: 'assignees', label: 'Assigned To', cls: 'col-assignee' },
     { key: 'state', label: 'State', cls: 'col-fit' },
     { key: 'tags', label: 'Tag', cls: 'col-tags' },
     { key: 'activityDate', label: 'Activity Date', cls: 'col-fit' },
@@ -366,10 +375,16 @@ export class TicketViewerPage {
       key === 'ticketId' ? t.ticketKey.toLowerCase()
       : key === 'state' ? STATES.indexOf(t.state)
       : key === 'tags' ? t.tags.join(', ').toLowerCase()
+      : key === 'assignees' ? this.assigneeNames(t).toLowerCase()
       : key === 'activityDate' ? t.activityDate
       : (t[key] ?? '').toLowerCase();
     return [...this.tickets()].sort((a, b) => (value(a) > value(b) ? dir : value(a) < value(b) ? -dir : b.ticketId - a.ticketId));
   });
+
+  /** Everyone on a ticket, for the tooltip and for sorting; empty when unassigned. */
+  assigneeNames(t: Ticket) {
+    return t.assignees.map((a) => a.displayName).join(', ');
+  }
 
   private searchTimer?: ReturnType<typeof setTimeout>;
 
@@ -530,6 +545,13 @@ export class TicketViewerPage {
     this.project.set(project);
     this.suggestions.set(suggestions);
     this.users.set(users);
+
+    if (canManageMembers(project.myRole)) {
+      const assignable = new Set(users.map((u) => u.userId));
+      this.outsiders.set((await this.api.userOptions()).filter((u) => !assignable.has(u.userId)));
+    } else {
+      this.outsiders.set([]);
+    }
   }
 
   private async loadTickets(id: number, folderId: number | null, search: string, states: string[], types: string[], tags: string[], mine: boolean) {

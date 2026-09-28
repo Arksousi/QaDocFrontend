@@ -21,7 +21,8 @@ export type IconName =
   | 'bullets'
   | 'plus'
   | 'search'
-  | 'tag';
+  | 'tag'
+  | 'bell';
 
 /**
  * The line-icon family, drawn inline for the same reason `TypeIcon` is: an emoji picks up whatever
@@ -91,6 +92,10 @@ export type IconName =
         @case ('tag') {
           <path d="M7.7 2.2H2.2v5.5l6.1 6.1a1.4 1.4 0 0 0 2 0l3.5-3.5a1.4 1.4 0 0 0 0-2z" />
           <circle cx="5.1" cy="5.1" r="1.05" fill="currentColor" stroke="none" />
+        }
+        @case ('bell') {
+          <path d="M4 11.2V7.2a4 4 0 0 1 8 0v4l1.2 1.3H2.8z" />
+          <path d="M6.6 14a1.5 1.5 0 0 0 2.8 0" />
         }
       }
     </svg>

@@ -68,6 +68,52 @@ const CASES: Case[] = [
     expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: FORBIDDEN, admin: 200 },
   },
 
+  // ---------- Admin and Leader surface ----------
+  // manager is the only Leader; every other account is a Tester, whatever it holds on the project.
+  {
+    name: 'GET /projects/scoreboard is Admin or Leader only',
+    method: 'get',
+    path: () => '/projects/scoreboard',
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: 200, admin: 200 },
+  },
+  {
+    name: 'POST /projects is Admin or Leader only',
+    method: 'post',
+    path: () => '/projects',
+    body: () => ({ projectName: 'Should never be created', projectCode: `NO${Date.now() % 100000}` }),
+    // manager and admin left out: letting them through would leave a stray project behind on
+    // every run. buildWorld creates its fixtures this way, which covers the admin allow side.
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN },
+  },
+  {
+    name: 'GET /users/workload (Users Dashboard) is Admin or Leader only',
+    method: 'get',
+    path: () => '/users/workload',
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: 200, admin: 200 },
+  },
+  {
+    name: 'PUT /users/{id}/ticket-limit is Admin only — a Leader reads loads but sets nobody\'s',
+    method: 'put',
+    path: (w) => `/users/${w.userIds['viewer']}/ticket-limit`,
+    body: () => ({ ticketLimit: null }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: FORBIDDEN, admin: 204 },
+  },
+  {
+    name: 'PUT /projects/{id}/members refuses the retired Manager role',
+    method: 'put',
+    path: (w) => `/projects/${w.projectId}/members`,
+    body: (w) => ({ userId: w.userIds['viewer'], role: 'Manager' }),
+    expected: { manager: 400, admin: 400 },
+  },
+
+  // ---------- your own notifications ----------
+  {
+    name: 'GET /notifications is anyone signed in, always their own',
+    method: 'get',
+    path: () => '/notifications',
+    expected: { anonymous: UNAUTHENTICATED, guest: 200, outsider: 200, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+
   // ---------- project membership ----------
   {
     name: 'GET /projects lists only what you can see',
@@ -125,7 +171,7 @@ const CASES: Case[] = [
       title: 'Created by the authorization matrix',
       description: '',
       ticketType: 'Bug',
-      assignedToUserId: null,
+      assignedToUserIds: [],
       state: 'Open',
       priority: 2,
       impact: 'Medium',
@@ -145,7 +191,7 @@ const CASES: Case[] = [
       title: 'Edited by the authorization matrix',
       description: '',
       ticketType: 'Bug',
-      assignedToUserId: null,
+      assignedToUserIds: [],
       state: 'Open',
       priority: 2,
       impact: 'Medium',
@@ -158,8 +204,9 @@ const CASES: Case[] = [
     method: 'post',
     path: (w) => `/tickets/${w.ticketId}/comments`,
     body: () => ({ text: 'Comment from the authorization matrix' }),
-    // Any member may comment, including a Viewer — commenting is not editing.
-    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: 201, contributor: 201, manager: 201, admin: 201 },
+    // Any member may comment, including a Viewer — commenting is not editing. 200, not 201: the
+    // endpoint answers with the saved comment itself (Ok(comment)) rather than a Created pointer.
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
   },
 
   // ---------- destructive: denial only ----------
@@ -237,7 +284,7 @@ test.describe('Cross-project access (BOLA / IDOR)', () => {
         title: 'Should never be written',
         description: '',
         ticketType: 'Bug',
-        assignedToUserId: null,
+        assignedToUserIds: [],
         state: 'Open',
         priority: 2,
         impact: 'Medium',
@@ -249,7 +296,7 @@ test.describe('Cross-project access (BOLA / IDOR)', () => {
 
   test('a Manager cannot add themselves to another project', async () => {
     const response = await clients.get('manager')!.put(`/projects/${world.otherProjectId}/members`, {
-      data: { userId: world.userIds['manager'], role: 'Manager' },
+      data: { userId: world.userIds['manager'], role: 'Contributor' },
     });
     expect(response.status()).toBe(HIDDEN);
   });
@@ -263,6 +310,147 @@ test.describe('Cross-project access (BOLA / IDOR)', () => {
   });
 });
 
+test.describe('Assigning a ticket to someone outside the project', () => {
+  // Its own throwaway user each time: a successful assignment adds them to the project, which
+  // would change what the shared outsider actor can see in every matrix row above.
+  const newcomer = async () => {
+    const response = await clients.get('admin')!.post('/users', {
+      data: { username: `authz.newcomer.${Date.now()}`, displayName: 'Authz newcomer', password: 'test-password-123', role: 'Tester' },
+    });
+    return (await response.json()).id as number;
+  };
+  const assignTo = (actor: Actor, userId: number) =>
+    clients.get(actor)!.put(`/tickets/${world.ticketId}`, {
+      data: {
+        folderId: world.folderId, title: 'Authorization fixture ticket', description: '', ticketType: 'Bug',
+        assignedToUserIds: [userId], state: 'Open', priority: 2, impact: 'Medium', tags: [],
+      },
+    });
+
+  test('a plain Contributor is refused', async () => {
+    expect((await assignTo('contributor', await newcomer())).status()).toBe(400);
+  });
+
+  test('a managing Leader adds them as a Contributor', async () => {
+    const userId = await newcomer();
+    expect((await assignTo('manager', userId)).status()).toBe(204);
+
+    const members = await (await clients.get('admin')!.get(`/projects/${world.projectId}/members`)).json();
+    expect(members.find((m: { userId: number }) => m.userId === userId)?.role).toBe('Contributor');
+  });
+});
+
+test.describe('Assignment notifications', () => {
+  interface Note { notificationId: number; ticketId: number; isRead: boolean }
+  const notesOf = async (actor: Actor): Promise<Note[]> => (await clients.get(actor)!.get('/notifications?top=50')).json();
+
+  test('the assignee is told, the person assigning is not, and nobody else can clear it', async () => {
+    // A fresh ticket assigned on creation, so earlier rows cannot have produced a match.
+    const created = await clients.get('admin')!.post('/tickets', {
+      data: {
+        folderId: world.folderId, title: 'Notification check', description: '', ticketType: 'Bug',
+        assignedToUserIds: [world.userIds['contributor']], state: 'Open', priority: 2, impact: 'Medium', tags: [],
+      },
+    });
+    const { id: ticketId } = await created.json();
+
+    const note = (await notesOf('contributor')).find((n) => n.ticketId === ticketId);
+    expect(note, 'the contributor should have been notified').toBeDefined();
+    expect(note!.isRead).toBe(false);
+    expect((await notesOf('admin')).some((n) => n.ticketId === ticketId)).toBe(false);
+
+    // Someone else's id must look missing, not forbidden, and must not mark it read.
+    expect((await clients.get('viewer')!.post(`/notifications/${note!.notificationId}/read`)).status()).toBe(HIDDEN);
+    expect((await clients.get('contributor')!.post(`/notifications/${note!.notificationId}/read`)).status()).toBe(204);
+    expect((await notesOf('contributor')).find((n) => n.ticketId === ticketId)!.isRead).toBe(true);
+  });
+});
+
+test.describe('Several people on one ticket', () => {
+  interface Assignee { userId: number; assignedByName: string | null }
+  const body = (assignedToUserIds: number[]) => ({
+    folderId: world.folderId, title: 'Shared ticket', description: '', ticketType: 'Bug',
+    assignedToUserIds, state: 'Open', priority: 2, impact: 'Medium', tags: [],
+  });
+
+  test('everyone assigned is kept and told; removing one leaves the rest', async () => {
+    const admin = clients.get('admin')!;
+    const pair = [world.userIds['contributor'], world.userIds['manager']];
+    const { id } = await (await admin.post('/tickets', { data: body(pair) })).json();
+
+    const assignees = async (): Promise<Assignee[]> => (await (await admin.get(`/tickets/${id}`)).json()).assignees;
+    expect((await assignees()).map((a) => a.userId).sort()).toEqual([...pair].sort());
+
+    for (const actor of ['contributor', 'manager'] as const) {
+      const notes: { ticketId: number }[] = await (await clients.get(actor)!.get('/notifications?top=50')).json();
+      expect(notes.some((n) => n.ticketId === id), `${actor} should have been notified`).toBe(true);
+    }
+
+    expect((await admin.put(`/tickets/${id}`, { data: body([world.userIds['manager']]) })).status()).toBe(204);
+    expect((await assignees()).map((a) => a.userId)).toEqual([world.userIds['manager']]);
+
+    // "Assigned to me" still finds a ticket the contributor shares; here they have left it.
+    const mine: { ticketId: number }[] = await (await clients.get('contributor')!
+      .get(`/projects/${world.projectId}/tickets?assignedTo=${world.userIds['contributor']}`)).json();
+    expect(mine.some((t) => t.ticketId === id)).toBe(false);
+  });
+
+  test('a save that leaves the list out keeps everyone (an app from before several assignees)', async () => {
+    const admin = clients.get('admin')!;
+    const pair = [world.userIds['contributor'], world.userIds['manager']];
+    const { id } = await (await admin.post('/tickets', { data: body(pair) })).json();
+
+    const { assignedToUserIds: _omitted, ...legacy } = body([]);
+    expect((await admin.put(`/tickets/${id}`, { data: { ...legacy, title: 'Edited by an old app' } })).status()).toBe(204);
+
+    const after: Assignee[] = (await (await admin.get(`/tickets/${id}`)).json()).assignees;
+    expect(after.map((a) => a.userId).sort()).toEqual([...pair].sort());
+  });
+
+  test('more than the limit is refused', async () => {
+    const tooMany = Array.from({ length: 11 }, (_, i) => i + 1);
+    expect((await clients.get('admin')!.post('/tickets', { data: body(tooMany) })).status()).toBe(400);
+  });
+});
+
+test.describe('Ticket limits', () => {
+  interface Option { userId: number; openTickets: number; ticketLimit: number | null }
+  const setLimit = (ticketLimit: number | null) =>
+    clients.get('admin')!.put(`/users/${world.userIds['contributor']}`, {
+      data: { displayName: 'Authz contributor', role: 'Tester', isActive: true, ticketLimit },
+    });
+  const load = async (): Promise<Option> => {
+    const people: Option[] = await (await clients.get('admin')!.get(`/projects/${world.projectId}/assignees`)).json();
+    return people.find((p) => p.userId === world.userIds['contributor'])!;
+  };
+  const ticket = (state: string) => ({
+    folderId: world.folderId, title: 'Limit check', description: '', ticketType: 'Bug',
+    assignedToUserIds: [world.userIds['contributor']], state, priority: 2, impact: 'Medium', tags: [],
+  });
+
+  test('the limit is saved, and a nonsense one refused', async () => {
+    expect((await setLimit(0)).status()).toBe(400);
+    expect((await setLimit(1)).status()).toBe(204);
+    expect((await load()).ticketLimit).toBe(1);
+  });
+
+  test('assigning past the limit is only a warning: the API accepts it, and Closed does not count', async () => {
+    await setLimit(1);
+    const before = (await load()).openTickets;
+
+    const created = await clients.get('admin')!.post('/tickets', { data: ticket('Open') });
+    expect(created.status(), 'over the limit must still be accepted').toBe(201);
+    const { id } = await created.json();
+    expect((await load()).openTickets).toBe(before + 1);
+
+    expect((await clients.get('admin')!.put(`/tickets/${id}`, { data: ticket('Closed') })).status()).toBe(204);
+    expect((await load()).openTickets).toBe(before);
+
+    await setLimit(null);
+    expect((await load()).ticketLimit).toBeNull();
+  });
+});
+
 test.describe('Destructive endpoints, allow side', () => {
   test('an Admin can delete a ticket it just created', async () => {
     // Its own sacrificial ticket, so the shared fixture survives.
@@ -273,7 +461,7 @@ test.describe('Destructive endpoints, allow side', () => {
         title: 'Sacrificial ticket',
         description: '',
         ticketType: 'Bug',
-        assignedToUserId: null,
+        assignedToUserIds: [],
         state: 'Open',
         priority: 2,
         impact: 'Medium',

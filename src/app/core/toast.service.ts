@@ -1,4 +1,4 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpContext, HttpContextToken, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
@@ -42,6 +42,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
 };
 
+/**
+ * Marks a request nobody asked for, like the notification poll. Its failures are not toasted:
+ * a dropped connection would otherwise raise the same error every minute. An expired session
+ * still signs you out.
+ */
+export const QUIET = new HttpContextToken<boolean>(() => false);
+export const quiet = () => new HttpContext().set(QUIET, true);
+
 /** Turns API failures into a readable toast; an expired or revoked session sends you back to Login. */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toasts = inject(ToastService);
@@ -54,7 +62,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       if (err.status === 401 && !isAuthCall) {
         if (auth.user()) toasts.error('Your session has ended. Please sign in again.');
         auth.logout(router.url.startsWith('/login') ? undefined : router.url);
-      } else if (!req.url.endsWith('/auth/me')) {
+      } else if (!req.url.endsWith('/auth/me') && !req.context.get(QUIET)) {
         toasts.error(describeError(err));
       }
       return throwError(() => err);

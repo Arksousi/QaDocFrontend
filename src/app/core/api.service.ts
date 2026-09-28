@@ -2,7 +2,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Attachment, Folder, Project, ProjectMember, ProjectRole, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserOption } from './models';
+import { quiet } from './toast.service';
+import { AppNotification, Attachment, Folder, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -34,6 +35,8 @@ export class ApiService {
   recentProjects = (top = 5) =>
     firstValueFrom(this.http.get<Project[]>(`${this.base}/projects/recent`, { params: { top } }));
   project = (id: number) => firstValueFrom(this.http.get<Project>(`${this.base}/projects/${id}`));
+  /** Admins and Leaders only, like creating a project. */
+  scoreboard = () => firstValueFrom(this.http.get<ProjectScoreboard[]>(`${this.base}/projects/scoreboard`));
   createProject = (projectName: string, projectCode: string) =>
     firstValueFrom(this.http.post<Created>(`${this.base}/projects`, { projectName, projectCode }));
 
@@ -54,7 +57,7 @@ export class ApiService {
   setProjectDemo = (id: number, isDemo: boolean) =>
     firstValueFrom(this.http.put<void>(`${this.base}/projects/${id}/demo`, { isDemo }));
 
-  // Project members (Admins anywhere; Managers on their own project)
+  // Project members (Admins anywhere; Leaders on projects they contribute to)
   projectMembers = (id: number) =>
     firstValueFrom(this.http.get<ProjectMember[]>(`${this.base}/projects/${id}/members`));
   saveProjectMember = (id: number, userId: number, role: ProjectRole) =>
@@ -75,7 +78,7 @@ export class ApiService {
     }
     return firstValueFrom(this.http.get<Ticket[]>(`${this.base}/projects/${projectId}/tickets`, { params }));
   }
-  /** Only Contributors, Managers and Admins: the API refuses anyone else as an assignee. */
+  /** Only Contributors and Admins: the API refuses anyone else as an assignee. */
   projectAssignees = (projectId: number) =>
     firstValueFrom(this.http.get<UserOption[]>(`${this.base}/projects/${projectId}/assignees`));
   suggestions = (projectId: number) =>
@@ -104,13 +107,28 @@ export class ApiService {
   attachmentUrl = (attachmentId: number, token: string | null) =>
     `${this.base}/attachments/${attachmentId}${token ? `?access_token=${encodeURIComponent(token)}` : ''}`;
 
+  // Notifications (always the caller's own)
+  notifications = (top = 20) =>
+    firstValueFrom(this.http.get<AppNotification[]>(`${this.base}/notifications`, { params: { top } }));
+  /** Polled in the background, so failures stay quiet instead of toasting every minute. */
+  unreadCount = () =>
+    firstValueFrom(this.http.get<{ count: number }>(`${this.base}/notifications/unread-count`, { context: quiet() }));
+  markNotificationRead = (id: number) =>
+    firstValueFrom(this.http.post<void>(`${this.base}/notifications/${id}/read`, {}));
+  markAllNotificationsRead = () => firstValueFrom(this.http.post<void>(`${this.base}/notifications/read-all`, {}));
+
   // Users
   userOptions = () => firstValueFrom(this.http.get<UserOption[]>(`${this.base}/users/options`));
   users = () => firstValueFrom(this.http.get<User[]>(`${this.base}/users`));
-  createUser = (u: { username: string; displayName: string; password: string; role: Role }) =>
+  createUser = (u: { username: string; displayName: string; password: string; role: Role; ticketLimit: number | null }) =>
     firstValueFrom(this.http.post<Created>(`${this.base}/users`, u));
-  updateUser = (id: number, u: { displayName: string; role: Role; isActive: boolean }) =>
+  updateUser = (id: number, u: { displayName: string; role: Role; isActive: boolean; ticketLimit: number | null }) =>
     firstValueFrom(this.http.put<void>(`${this.base}/users/${id}`, u));
+  /** Users Dashboard. Admins and Leaders. */
+  userWorkload = () => firstValueFrom(this.http.get<UserWorkload[]>(`${this.base}/users/workload`));
+  /** Admin only. null clears the limit. */
+  setTicketLimit = (id: number, ticketLimit: number | null) =>
+    firstValueFrom(this.http.put<void>(`${this.base}/users/${id}/ticket-limit`, { ticketLimit }));
   resetPassword = (id: number, newPassword: string) =>
     firstValueFrom(this.http.post<void>(`${this.base}/users/${id}/reset-password`, { newPassword }));
 }

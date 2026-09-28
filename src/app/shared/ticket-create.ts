@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, UserOption } from '../core/models';
 import { ToastService } from '../core/toast.service';
+import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
 import { Modal } from './modal';
 import { RichText } from './rich-text';
 import { TagInput } from './tag-input';
@@ -10,20 +11,24 @@ import { TagInput } from './tag-input';
 /** Ticket creation window. */
 @Component({
   selector: 'app-ticket-create',
-  imports: [FormsModule, Modal, TagInput, RichText],
+  imports: [FormsModule, Modal, TagInput, RichText, AssigneePicker],
   template: `
     <app-modal heading="Create ticket" [wide]="true" (closed)="closed.emit()">
       <form id="createTicketForm" class="form" (ngSubmit)="save()">
         <label>Title *
           <input name="title" [(ngModel)]="draft.title" required maxlength="200" autofocus placeholder="Short summary of the issue or task" />
         </label>
+        <!-- Outside the grid: several people need the full width, and a <label> around the
+             chips' remove buttons would hand every click to the first one. -->
+        <div class="field">
+          <span class="field-label">Assigned To</span>
+          <app-assignee-picker label="Assigned To" [members]="users()" [outsiders]="outsiders()"
+            [(selected)]="draft.assignedToUserIds" />
+          @if (joinedNames(); as names) {
+            <span class="hint">Creating adds {{ names }} to this project as Contributor.</span>
+          }
+        </div>
         <div class="form-grid">
-          <label>Assigned To
-            <select name="assignedTo" [(ngModel)]="draft.assignedToUserId">
-              <option [ngValue]="null">Unassigned</option>
-              @for (u of users(); track u.userId) { <option [ngValue]="u.userId">{{ u.displayName }}</option> }
-            </select>
-          </label>
           <label>State
             <select name="state" [(ngModel)]="draft.state">
               @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
@@ -72,6 +77,8 @@ export class TicketCreate {
   readonly folderId = input.required<number>();
   readonly suggestions = input<Suggestions>({ tags: [] });
   readonly users = input<UserOption[]>([]);
+  /** People not yet assignable; only filled for those who manage the project. Picking one adds them. */
+  readonly outsiders = input<UserOption[]>([]);
   readonly created = output<number>();
   readonly closed = output<void>();
   readonly saving = signal(false);
@@ -81,14 +88,25 @@ export class TicketCreate {
   readonly impacts = IMPACTS;
   readonly types = TICKET_TYPES;
 
-  draft: SaveTicket = { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  draft: SaveTicket = { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserIds: [], state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+
+  /**
+   * Outsiders the draft assigns to, by name. A method rather than a computed: `draft` is a plain
+   * field written only by template event bindings, which already schedule the repaint.
+   */
+  joinedNames(): string {
+    return this.outsiders().filter((u) => this.draft.assignedToUserIds.includes(u.userId)).map((u) => u.displayName).join(', ');
+  }
 
   async save() {
     if (!this.draft.title.trim() || this.saving()) return;
+    // A guide, not a rule: the API would accept it. Declining keeps the draft open.
+    if (!confirmOverLimit(newlyOverLimit([...this.users(), ...this.outsiders()], this.draft.assignedToUserIds, []))) return;
+    const joined = this.joinedNames();
     this.saving.set(true);
     try {
       const { id } = await this.api.createTicket({ ...this.draft, title: this.draft.title.trim(), folderId: this.folderId() });
-      this.toast.success('Ticket created.');
+      this.toast.success(joined ? `Ticket created. Added to this project as Contributor: ${joined}.` : 'Ticket created.');
       this.created.emit(id);
     } finally {
       this.saving.set(false);

@@ -4,10 +4,11 @@ import { AuthService } from '../core/auth.service';
 import { avatarTone, initials } from '../core/models';
 import { ChangePassword } from './change-password';
 import { Icon } from './icon';
+import { NotificationBell } from './notification-bell';
 
 @Component({
   selector: 'app-topbar',
-  imports: [RouterLink, ChangePassword, Icon],
+  imports: [RouterLink, ChangePassword, Icon, NotificationBell],
   template: `
     <header class="topbar">
       <!-- Mark plus the name as real text: the full lockup's wordmark is unreadable at bar size. -->
@@ -25,6 +26,9 @@ import { Icon } from './icon';
       }
       <div class="topbar-actions">
         <ng-content />
+        @if (auth.user() && !auth.isGuest()) {
+          <app-notification-bell />
+        }
         @if (auth.user(); as me) {
           <div class="user-menu">
             <button class="user-button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-haspopup="menu">
@@ -41,6 +45,10 @@ import { Icon } from './icon';
                   </span>
                 </div>
                 <a role="menuitem" routerLink="/" (click)="menuOpen.set(false)">Projects</a>
+                @if (auth.canLead()) {
+                  <a role="menuitem" routerLink="/leader" (click)="menuOpen.set(false)">Leader Dashboard</a>
+                  <a role="menuitem" routerLink="/users-dashboard" (click)="menuOpen.set(false)">Users Dashboard</a>
+                }
                 @if (auth.isAdmin()) {
                   <a role="menuitem" routerLink="/users" (click)="menuOpen.set(false)">Manage users</a>
                 }

@@ -5,7 +5,7 @@ import { PROJECT_ROLES, Project, ProjectMember, ProjectRole, UserOption } from '
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 
-/** Who can see a project, and how much they can do in it. Managers and Admins only. */
+/** Who can see a project, and how much they can do in it. Admins, and Leaders who contribute to it. */
 @Component({
   selector: 'app-project-members',
   imports: [FormsModule, Modal],
@@ -40,6 +40,11 @@ import { Modal } from '../../shared/modal';
                     {{ m.displayName }}
                     <span class="muted small">{{ '@' + m.username }}</span>
                     @if (!m.isActive) { <span class="muted small">· inactive</span> }
+                    <!-- canManage leaves Admins out on purpose (it is what the "last Leader" check counts),
+                         but an Admin does manage every project, so the label says so. -->
+                    @if (m.canManage || m.userRole === 'Admin') {
+                      <span class="role role-leader" [title]="m.userRole === 'Admin' ? 'Admin: manages every project' : 'Leader and Contributor: manages this project'">Manages</span>
+                    }
                   </td>
                   <td>
                     <select [attr.aria-label]="'Access for ' + m.displayName"
@@ -60,8 +65,8 @@ import { Modal } from '../../shared/modal';
 
         <p class="hint">
           <strong>Viewer</strong> reads tickets and comments ·
-          <strong>Contributor</strong> also creates and edits them ·
-          <strong>Manager</strong> also manages this list.
+          <strong>Contributor</strong> also creates and edits them.
+          A Contributor who is a <strong>Leader</strong> also manages this list and the folders.
         </p>
       }
 

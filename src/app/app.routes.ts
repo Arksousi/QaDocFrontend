@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard, guestGuard } from './core/auth.guards';
+import { adminGuard, authGuard, guestGuard, leaderGuard } from './core/auth.guards';
 
 export const routes: Routes = [
   {
@@ -23,6 +23,18 @@ export const routes: Routes = [
         path: 'projects/:projectId',
         loadComponent: () => import('./pages/ticket-viewer/ticket-viewer').then((m) => m.TicketViewerPage),
         title: 'Tickets · QaDoc',
+      },
+      {
+        path: 'leader',
+        canActivate: [leaderGuard],
+        loadComponent: () => import('./pages/leader/leader').then((m) => m.LeaderPage),
+        title: 'Leader Dashboard · QaDoc',
+      },
+      {
+        path: 'users-dashboard',
+        canActivate: [leaderGuard],
+        loadComponent: () => import('./pages/users-dashboard/users-dashboard').then((m) => m.UsersDashboardPage),
+        title: 'Users Dashboard · QaDoc',
       },
       {
         path: 'users',

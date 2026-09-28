@@ -265,6 +265,43 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .recent-item .recent-card h3 { padding-right: var(--space-5); }
 .recent-item .row-menu { position: absolute; top: var(--space-2); right: var(--space-2); }
 
+/* ---------- Leader Dashboard ---------- */
+.skeleton-score { height: 190px; }
+.score-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.score-title h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-body { display: flex; align-items: flex-start; gap: var(--space-6); }
+
+/* The ring fills with what is finished, so an emptying "3 of 11" reads as a filling circle. */
+.kpi { position: relative; flex: none; width: 140px; margin: 0; text-align: center; }
+.kpi-ring { display: block; width: 140px; height: 140px; transform: rotate(-90deg); }
+.kpi-track, .kpi-fill { fill: none; stroke-width: 12; }
+.kpi-track { stroke: var(--neutral-100); }
+.kpi-fill { stroke: var(--success); stroke-linecap: round; transition: stroke-dasharray .4s ease; }
+/* Centred over the ring alone, not the ring plus caption. */
+.kpi-value { position: absolute; top: 0; left: 0; width: 140px; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.kpi-value strong { font-size: 30px; font-weight: 700; }
+.kpi-value span { font-size: var(--fs-md); color: var(--muted); }
+.kpi figcaption { margin-top: var(--space-2); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); }
+
+.score-members { flex: 1; min-width: 0; }
+.score-members .section-title { margin-bottom: var(--space-2); }
+/* Name, bar, count on fixed tracks so every bar in a card starts and ends at the same x. */
+.score-row { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 52px; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; }
+.score-row .person { min-width: 0; }
+.score-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-bar { display: block; height: var(--space-2); background: var(--neutral-100); border-radius: var(--radius-pill); overflow: hidden; }
+.score-bar > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width .4s ease; }
+.score-count { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- Users Dashboard ---------- */
+/* Load against the ticket limit. "Full" and "Over" are spelled out as well as tinted, so neither
+   rests on colour alone. The bar reuses the Leader Dashboard's track so the two read alike. */
+.load-chip { flex: none; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--neutral-100); color: var(--text-2); white-space: nowrap; }
+.load-chip.load-full { background: var(--danger-soft); color: var(--danger); }
+.workload-table .score-bar { min-width: 120px; }
+.score-bar.load-bar-full > span { background: var(--danger); }
+.limit-input { width: 72px; height: var(--control-h-sm); padding: 0 var(--space-2); text-align: right; }
+
 /* ---------- Folder rail (Project - Folder - Ticket) ---------- */
 .folder-layout { display: flex; align-items: flex-start; gap: var(--space-4); }
 .folder-rail { flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); }
@@ -396,7 +433,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .filter-empty { margin: 0; padding: var(--space-2); }
 
 /* ---------- State & tags ---------- */
-.state { display: inline-block; font-size: var(--fs-xs); font-weight: 700; padding: 2px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+/* Shaped like a .tag — same corner, padding and 18px line — so State and Tag sit side by side in a
+   row as one family of chips. The colours and bold uppercase stay: they are what make a state
+   readable at a glance, which a tag does not need to be. */
+.state { display: inline-flex; align-items: center; font-size: var(--fs-xs); font-weight: 700; line-height: 18px; padding: 1px var(--space-2); border-radius: var(--radius-sm); text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
 /*
  * The five states read as one journey: grey to do, then three shades of blue for work in
  * flight — standard while it is being worked, lighter while it waits for confirmation, darker
@@ -438,6 +478,15 @@ select.state-select { font-weight: 600; }
 /* Smaller than the shared .icon-close: at full size the cross outweighs the word it dismisses. */
 .tag-remove .icon { width: 12px; height: 12px; }
 .tag-remove:hover { color: var(--danger); }
+/* Assigned To reuses the tag input's box: a chip per person, then a borderless "add" select that
+   takes the rest of the line, the way the tag input's text field does. */
+.assignee-chip { gap: var(--space-1); padding-left: 2px; }
+.assignee-chip .avatar-sm { width: 18px; height: 18px; font-size: 8px; }
+.assignee-picker .assignee-add { flex: 1; min-width: 180px; width: auto; border: 0; padding: 2px; background: transparent; color: var(--muted); cursor: pointer; }
+.assignee-picker .assignee-add:focus { outline: 0; color: var(--text); }
+.col-assignee .count { margin-left: 2px; }
+.assignee-chip.assignee-over { background: var(--danger-soft); color: var(--danger); }
+.assignee-over-icon { width: 12px; height: 12px; }
 
 /* ---------- Ticket Details ---------- */
 .details-box { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--surface-2); }
@@ -593,6 +642,25 @@ select.state-select { font-weight: 600; }
 .menu-header { display: flex; flex-direction: column; padding: var(--space-2) var(--space-2) var(--space-2); border-bottom: 1px solid var(--border); margin-bottom: var(--space-1); }
 .menu a, .menu button { text-align: left; border: 0; background: transparent; font: inherit; color: var(--text); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; text-decoration: none; transition: background var(--ease); }
 .menu a:hover, .menu button:hover { background: var(--neutral-50); text-decoration: none; }
+
+/* ---------- Notifications ---------- */
+.bell-menu { position: relative; }
+.bell-button { position: relative; }
+/* Sits on the bell's shoulder, over the edge, so it never covers the glyph itself. */
+.bell-badge {
+  position: absolute; top: -2px; right: -3px; min-width: 16px; height: 16px; padding: 0 var(--space-1);
+  background: var(--danger); color: var(--on-dark); border-radius: var(--radius-pill);
+  font-size: 10px; font-weight: 700; line-height: 16px; text-align: center;
+}
+.bell-panel { width: 340px; max-height: 420px; overflow-y: auto; }
+.bell-head { display: flex; justify-content: space-between; align-items: center; padding: var(--space-2); border-bottom: 1px solid var(--border); margin-bottom: var(--space-1); }
+.menu .bell-head .link-btn { padding: 0; text-decoration: none; }
+.menu .bell-item { display: flex; flex-direction: column; gap: 2px; padding: var(--space-2); border-left: 3px solid transparent; }
+/* Unread carries a bar and a tint, not colour alone, so it still reads for someone who cannot tell the tint apart. */
+.menu .bell-item.unread { background: var(--primary-soft); border-left-color: var(--primary); }
+.menu .bell-item.unread:hover { background: var(--primary-soft-2); }
+.bell-title { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bell-empty { padding: var(--space-3) var(--space-2); margin: 0; }
 .check { display: flex !important; flex-direction: row !important; align-items: center; gap: var(--space-1); font-weight: 400 !important; cursor: pointer; white-space: nowrap; }
 .check input { width: auto; }
 
@@ -617,6 +685,7 @@ select.state-select { font-weight: 600; }
 
 .role { display: inline-block; font-size: var(--fs-xs); font-weight: 700; padding: 2px var(--space-2); border-radius: var(--radius-pill); text-transform: uppercase; }
 .role-admin { background: var(--purple-soft); color: var(--purple); }
+.role-leader { background: var(--neutral-100); color: var(--text); }
 .role-developer { background: var(--primary-soft); color: var(--primary); }
 .role-tester { background: #e3fcef; color: var(--state-closed-bg); }
 .status-dot { display: inline-block; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: #a5adba; margin-right: var(--space-1); }
@@ -695,6 +764,12 @@ select.state-select { font-weight: 600; }
   .toolbar .filter-menu { flex: 1; }
   .toolbar .filter-button { min-width: 0; width: 100%; }
   .user-name { display: none; }
+  /* Anchored to the bell, the panel would run off the left edge of a phone. */
+  .bell-panel { position: fixed; left: var(--space-4); right: var(--space-4); top: 56px; width: auto; }
   .modal-header, .modal-body, .modal-footer { padding-left: var(--space-4); padding-right: var(--space-4); }
   .project-head { gap: var(--space-2); margin-bottom: var(--space-4); }
+  /* The ring moves above the names: side by side, the bars would be too short to compare. */
+  .score-body { flex-direction: column; align-items: center; gap: var(--space-4); }
+  .score-members { width: 100%; }
+  .score-row { grid-template-columns: minmax(0, 1fr) 1fr 44px; }
 }

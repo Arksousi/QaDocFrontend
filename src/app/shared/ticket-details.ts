@@ -5,6 +5,7 @@ import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, UserOption, avatarTone, initials, slug } from '../core/models';
 import { ToastService } from '../core/toast.service';
+import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
 import { Icon } from './icon';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
@@ -13,7 +14,7 @@ import { TagInput } from './tag-input';
 /** Ticket Details window: an editable Details box, then Comments and History tabs. */
 @Component({
   selector: 'app-ticket-details',
-  imports: [FormsModule, DatePipe, Modal, TagInput, RichText, Icon],
+  imports: [FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker],
   template: `
     <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
@@ -39,17 +40,20 @@ import { TagInput } from './tag-input';
             <div class="detail">
               <span class="detail-label">Assigned By</span>
               <span class="detail-value">
-                @if (t.assignedByName) { {{ t.assignedByName }} } @else { <span class="muted">—</span> }
+                @if (assignedBy()) { {{ assignedBy() }} } @else { <span class="muted">—</span> }
               </span>
             </div>
 
-            <label class="detail">
+            <!-- A div, not a <label>: a label around several buttons hands every click to the first. -->
+            <div class="detail span-2">
               <span class="detail-label">Assigned To</span>
-              <select name="assignedTo" [(ngModel)]="form.assignedToUserId" [disabled]="!canEdit()" (ngModelChange)="touch()">
-                <option [ngValue]="null">Unassigned</option>
-                @for (u of assigneeOptions(); track u.userId) { <option [ngValue]="u.userId">{{ u.displayName }}</option> }
-              </select>
-            </label>
+              <app-assignee-picker label="Assigned To" [readonly]="!canEdit()"
+                [members]="users()" [outsiders]="outsiders()" [current]="t.assignees"
+                [selected]="form.assignedToUserIds" (selectedChange)="form.assignedToUserIds = $event; touch()" />
+              @if (joining().length) {
+                <span class="hint">Saving adds {{ joinedNames() }} to this project as {{ joining().length === 1 ? 'a Contributor' : 'Contributors' }}.</span>
+              }
+            </div>
             <label class="detail">
               <span class="detail-label">State</span>
               <select name="state" [(ngModel)]="form.state" [disabled]="!canEdit()" (ngModelChange)="touch()"
@@ -201,6 +205,8 @@ export class TicketDetails {
   readonly ticketId = input.required<number>();
   readonly suggestions = input<Suggestions>({ tags: [] });
   readonly users = input<UserOption[]>([]);
+  /** People not yet assignable; only filled for those who manage the project. Picking one adds them. */
+  readonly outsiders = input<UserOption[]>([]);
   /** False for project Viewers: the API refuses their saves, so do not offer them. */
   readonly canEdit = input(true);
   /** Emitted after a save, comment or delete so the list can refresh. */
@@ -232,15 +238,16 @@ export class TicketDetails {
     return !!t && JSON.stringify(toForm(t)) !== JSON.stringify(normalise(this.form));
   });
 
-  /** Active users, plus the current assignee even if they have since been deactivated. */
-  readonly assigneeOptions = computed(() => {
-    const t = this.ticket();
-    const list = this.users();
-    if (t?.assignedToUserId && !list.some((u) => u.userId === t.assignedToUserId)) {
-      return [...list, { userId: t.assignedToUserId, displayName: `${t.assignedToName} (inactive)`, username: '' }];
-    }
-    return list;
+  /** Everyone who put someone on this ticket, once each. */
+  readonly assignedBy = computed(() =>
+    [...new Set((this.ticket()?.assignees ?? []).map((a) => a.assignedByName).filter((n): n is string => !!n))].join(', '));
+
+  /** Outsiders the unsaved form assigns to: saving will make them Contributors. */
+  readonly joining = computed(() => {
+    this.version();
+    return this.outsiders().filter((u) => this.form.assignedToUserIds.includes(u.userId));
   });
+  readonly joinedNames = computed(() => this.joining().map((u) => u.displayName).join(', '));
 
   constructor() {
     effect(async () => {
@@ -272,11 +279,17 @@ export class TicketDetails {
   async save() {
     const t = this.ticket();
     if (!t || !this.form.title.trim() || this.saving()) return;
+    // A guide, not a rule: the API would accept it. Declining keeps the window open, unsaved.
+    const over = newlyOverLimit([...this.users(), ...this.outsiders()], this.form.assignedToUserIds, t.assignees.map((a) => a.userId));
+    if (!confirmOverLimit(over)) return;
+    const joined = this.joinedNames();
     this.saving.set(true);
     try {
       await this.api.updateTicket(t.ticketId, normalise(this.form));
       this.load(await this.api.ticket(t.ticketId));
-      this.toast.success(`${t.ticketKey} saved.`);
+      this.toast.success(joined
+        ? `${t.ticketKey} saved. Added to this project as Contributor: ${joined}.`
+        : `${t.ticketKey} saved.`);
       this.changed.emit();
     } finally {
       this.saving.set(false);
@@ -316,7 +329,7 @@ export class TicketDetails {
 }
 
 function emptyForm(): SaveTicket {
-  return { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserId: null, state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+  return { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserIds: [], state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 }
 
 function toForm(t: Ticket): SaveTicket {
@@ -325,7 +338,7 @@ function toForm(t: Ticket): SaveTicket {
     title: t.title,
     ticketType: t.ticketType,
     description: toRichText(t.description),
-    assignedToUserId: t.assignedToUserId,
+    assignedToUserIds: t.assignees.map((a) => a.userId),
     state: t.state,
     priority: t.priority,
     impact: t.impact,
@@ -340,7 +353,7 @@ function normalise(f: SaveTicket): SaveTicket {
     title: f.title.trim(),
     ticketType: f.ticketType,
     description: (f.description ?? '').trimEnd(),
-    assignedToUserId: f.assignedToUserId ?? null,
+    assignedToUserIds: [...(f.assignedToUserIds ?? [])],
     state: f.state,
     priority: Number(f.priority),
     impact: f.impact,

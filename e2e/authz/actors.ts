@@ -18,7 +18,7 @@ export const ACTORS = [
   'outsider',    // a real account with NO membership in the project under test
   'viewer',      // ProjectAccess.Viewer
   'contributor', // ProjectAccess.Contributor
-  'manager',     // ProjectAccess.Manager
+  'manager',     // ProjectAccess.Manager: a Leader account holding Contributor
   'admin',       // the global Admin role
 ] as const;
 
@@ -38,11 +38,30 @@ export interface World {
   userIds: Record<string, number>;
 }
 
-/** An authenticated (or anonymous) API client for one actor. */
+/**
+ * An authenticated (or anonymous) API client for one actor.
+ *
+ * Playwright resolves a request path against baseURL the way a browser resolves a link, so
+ * '/auth/status' against '.../api' lands on '/auth/status' and the '/api' is silently lost —
+ * every call 404s. The base is therefore the bare origin, and the API's own path is put back
+ * in front of each request here, so the tests can keep writing paths as the API documents them.
+ */
 export async function clientFor(token: string | null): Promise<APIRequestContext> {
-  return request.newContext({
-    baseURL: API,
+  const { origin, pathname } = new URL(API);
+  const prefix = pathname.replace(/\/$/, '');
+  const context = await request.newContext({
+    baseURL: origin,
     extraHTTPHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const verbs = new Set(['get', 'post', 'put', 'patch', 'delete', 'head', 'fetch']);
+  return new Proxy(context, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== 'function') return value;
+      if (!verbs.has(prop as string)) return value.bind(target);
+      return (url: unknown, options?: unknown) =>
+        value.call(target, typeof url === 'string' && url.startsWith('/') ? prefix + url : url, options);
+    },
   });
 }
 
@@ -87,17 +106,18 @@ export async function buildWorld(): Promise<World> {
 
   // --- the other actors ----------------------------------------------------
   const userIds: Record<string, number> = {};
-  const make = async (key: string) => {
+  const make = async (key: string, role: 'Tester' | 'Leader' = 'Tester') => {
     const username = `authz.${key}.${stamp}`;
     const response = await admin.post('/users', {
-      data: { username, displayName: `Authz ${key}`, password: PASSWORD, role: 'Tester' },
+      data: { username, displayName: `Authz ${key}`, password: PASSWORD, role },
     });
     if (!response.ok()) throw new Error(`Could not create ${key}: ${response.status()}`);
     userIds[key] = (await response.json()).id;
     return { key, username };
   };
 
-  const people = [await make('outsider'), await make('viewer'), await make('contributor'), await make('manager')];
+  // There is no Manager project role any more: managing comes from being a Leader who contributes.
+  const people = [await make('outsider'), await make('viewer'), await make('contributor'), await make('manager', 'Leader')];
 
   // --- projects ------------------------------------------------------------
   const newProject = async (name: string, code: string) => {
@@ -110,8 +130,9 @@ export async function buildWorld(): Promise<World> {
   const otherProjectId = await newProject(`Authz Other ${stamp}`, `OT${stamp % 10000}`);
 
   // Membership: everyone except the outsider, who is deliberately left with none.
-  for (const role of ['Viewer', 'Contributor', 'Manager'] as const) {
-    const person = people.find((p) => p.key === role.toLowerCase())!;
+  const memberships = [['viewer', 'Viewer'], ['contributor', 'Contributor'], ['manager', 'Contributor']] as const;
+  for (const [key, role] of memberships) {
+    const person = people.find((p) => p.key === key)!;
     const response = await admin.put(`/projects/${projectId}/members`, {
       data: { userId: userIds[person.key], role },
     });
@@ -128,7 +149,7 @@ export async function buildWorld(): Promise<World> {
       title: 'Authorization fixture ticket',
       description: '',
       ticketType: 'Bug',
-      assignedToUserId: null,
+      assignedToUserIds: [],
       state: 'Open',
       priority: 2,
       impact: 'Medium',
@@ -144,7 +165,7 @@ export async function buildWorld(): Promise<World> {
       title: 'Ticket in a project nobody else belongs to',
       description: '',
       ticketType: 'Bug',
-      assignedToUserId: null,
+      assignedToUserIds: [],
       state: 'Open',
       priority: 2,
       impact: 'Medium',

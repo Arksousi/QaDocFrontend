@@ -8,16 +8,17 @@ import { Project, canManageMembers } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
+import { ProjectCreate } from '../../shared/project-create';
 import { Topbar } from '../../shared/topbar';
 import { ProjectMembers } from './project-members';
 
 @Component({
   selector: 'app-project-menu',
-  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers, Icon],
+  imports: [FormsModule, RouterLink, DatePipe, Modal, Topbar, ProjectMembers, ProjectCreate, Icon],
   template: `
     <app-topbar>
-      @if (!auth.isGuest()) {
-        <button class="btn btn-primary" (click)="openAdd()"><app-icon name="plus" /> Add project</button>
+      @if (auth.canLead()) {
+        <button class="btn btn-primary" (click)="adding.set(true)"><app-icon name="plus" /> Add project</button>
       }
     </app-topbar>
 
@@ -40,7 +41,7 @@ import { ProjectMembers } from './project-members';
       } @else if (projects().length === 0) {
         <div class="card empty">
           <h2>No projects yet</h2>
-          @if (auth.isAdmin()) {
+          @if (auth.canLead()) {
             <p>Add a project to start tracking tickets.</p>
           } @else {
             <p>Once someone adds you to a project, it will show up here.</p>
@@ -140,23 +141,7 @@ import { ProjectMembers } from './project-members';
     </main>
 
     @if (adding()) {
-      <app-modal heading="Add project" (closed)="adding.set(false)">
-        <form id="addProjectForm" class="form" (ngSubmit)="save()">
-          <label>Name *
-            <input name="name" [(ngModel)]="newName" required maxlength="150" autofocus
-              placeholder="e.g. Restaurant Management System" (ngModelChange)="suggestCode()" />
-          </label>
-          <label>Code *
-            <input name="code" [(ngModel)]="newCode" required maxlength="10" placeholder="e.g. RMS"
-              (ngModelChange)="newCode = $event.toUpperCase(); codeTouched = true" />
-            <span class="hint">Starts every ticket key in this project, e.g. <span class="mono">{{ keyExample() }}</span></span>
-          </label>
-        </form>
-        <ng-container modal-actions>
-          <button class="btn btn-ghost" (click)="adding.set(false)">Cancel</button>
-          <button class="btn btn-primary" type="submit" form="addProjectForm" [disabled]="saving() || !newName.trim() || !newCode.trim()">Add project</button>
-        </ng-container>
-      </app-modal>
+      <app-project-create (closed)="adding.set(false)" />
     }
 
     @if (info(); as p) {
@@ -233,12 +218,7 @@ export class ProjectMenuPage implements OnInit {
   readonly busyDemo = signal(false);
   readonly loading = signal(true);
   readonly adding = signal(false);
-  readonly saving = signal(false);
   readonly search = signal('');
-  newName = '';
-  newCode = '';
-  /** Stops the suggestion overwriting a code the user typed themselves. */
-  codeTouched = false;
 
   /** Which ⋯ menu is open, as "<surface>:<projectId>" — a project appears in both the cards and the table. */
   readonly menuKey = signal<string | null>(null);
@@ -293,45 +273,6 @@ export class ProjectMenuPage implements OnInit {
     }
   }
 
-  openAdd() {
-    this.newName = '';
-    this.newCode = '';
-    this.codeTouched = false;
-    this.adding.set(true);
-  }
-
-  /**
-   * Offers a code as the name is typed: initials for multi-word names ("Restaurant Management
-   * System" → RMS), the first letters otherwise. Mirrors what the migration does to old projects.
-   */
-  suggestCode() {
-    if (this.codeTouched) return;
-    const words = this.newName.trim().split(/\s+/).filter(Boolean);
-    const derived =
-      words.length > 1
-        ? words.map((w) => w[0]).join('')
-        : (words[0] ?? '').slice(0, 4);
-    this.newCode = derived.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
-  }
-
-  keyExample() {
-    return `${this.newCode || 'RMS'}-V1-0001`;
-  }
-
-  async save() {
-    const name = this.newName.trim();
-    const code = this.newCode.trim().toUpperCase();
-    if (!name || !code || this.saving()) return;
-    this.saving.set(true);
-    try {
-      const { id } = await this.api.createProject(name, code);
-      this.toast.success(`Project “${name}” (${code}) created.`);
-      this.router.navigate(['/projects', id]);
-    } finally {
-      this.saving.set(false);
-    }
-  }
-
   open(p: Project) {
     this.router.navigate(['/projects', p.projectId]);
   }
@@ -348,7 +289,7 @@ export class ProjectMenuPage implements OnInit {
     this.info.set(p);
   }
 
-  /** Managers on their own project; Admins are reported as Manager everywhere. */
+  /** Leaders on projects they contribute to; Admins are reported as Manager everywhere. */
   canManage(p: Project) {
     return canManageMembers(p.myRole);
   }

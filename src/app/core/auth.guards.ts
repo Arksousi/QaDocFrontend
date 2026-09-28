@@ -13,6 +13,11 @@ export const adminGuard: CanActivateFn = () => {
   return auth.isAdmin() ? true : inject(Router).createUrlTree(['/']);
 };
 
+export const leaderGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  return auth.canLead() ? true : inject(Router).createUrlTree(['/']);
+};
+
 /** The Login page is pointless when already signed in. */
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
