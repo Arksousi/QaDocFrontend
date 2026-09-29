@@ -1,6 +1,7 @@
 import { Component, computed, input, model } from '@angular/core';
 import { MAX_ASSIGNEES, TicketAssignee, UserOption, avatarTone, initials, loadLabel, overLimit } from '../core/models';
 import { Icon } from './icon';
+import { UserCardTrigger } from './user-card';
 
 /**
  * Whether this person ends up over their limit once the ticket is saved. Someone already on it is
@@ -35,12 +36,12 @@ export function confirmOverLimit(people: UserOption[]): boolean {
  */
 @Component({
   selector: 'app-assignee-picker',
-  imports: [Icon],
+  imports: [UserCardTrigger, Icon],
   template: `
     <div class="tag-input assignee-picker" [class.tag-input-readonly]="readonly()">
       @for (id of selected(); track id) {
         <span class="tag assignee-chip" [class.assignee-over]="wouldExceed(id)" [title]="byLine(id)">
-          <span class="avatar avatar-sm avatar-t{{ toneOf(nameOf(id)) }}" aria-hidden="true">{{ initialsOf(nameOf(id)) }}</span>
+          <span class="avatar avatar-sm avatar-t{{ toneOf(nameOf(id)) }}" [appUserCard]="id" aria-hidden="true">{{ initialsOf(nameOf(id)) }}</span>
           {{ nameOf(id) }}
           @if (wouldExceed(id)) { <app-icon name="alert" class="assignee-over-icon" label="Over their ticket limit" /> }
           @if (!readonly()) {

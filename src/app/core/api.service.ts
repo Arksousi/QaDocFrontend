@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { quiet } from './toast.service';
-import { AppNotification, Attachment, Folder, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserOption, UserWorkload } from './models';
+import { AppNotification, Attachment, Folder, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserCard, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -124,6 +124,8 @@ export class ApiService {
     firstValueFrom(this.http.post<Created>(`${this.base}/users`, u));
   updateUser = (id: number, u: { displayName: string; role: Role; isActive: boolean; ticketLimit: number | null }) =>
     firstValueFrom(this.http.put<void>(`${this.base}/users/${id}`, u));
+  /** The avatar hover card. Admins and Leaders. */
+  userCard = (id: number) => firstValueFrom(this.http.get<UserCard>(`${this.base}/users/${id}/card`, { context: quiet() }));
   /** Users Dashboard. Admins and Leaders. */
   userWorkload = () => firstValueFrom(this.http.get<UserWorkload[]>(`${this.base}/users/workload`));
   /** Admin only. null clears the limit. */

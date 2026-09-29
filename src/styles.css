@@ -293,6 +293,27 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .score-bar > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width .4s ease; }
 .score-count { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* ---------- User hover card ---------- */
+/* Above dialogs (100) and the picture viewer (200): it is opened from avatars inside the ticket
+   window too. Fixed, because it is placed from the avatar's position on screen. */
+.user-card {
+  position: fixed; z-index: 300; width: 300px; padding: var(--space-3);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); font-size: var(--fs-base); color: var(--text); text-align: left; white-space: normal;
+}
+.user-card-head { display: flex; align-items: center; gap: var(--space-2); }
+.user-card-head .grow { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.user-card-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-card-load { margin: var(--space-3) 0 var(--space-2); }
+.user-card-load-line { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--space-1); }
+.user-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); margin: 0 0 var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center; }
+.user-card-stats dt { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .3px; }
+.user-card-stats dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.user-card-section .section-title { display: block; margin-bottom: var(--space-1); }
+.user-card-project { display: flex; align-items: center; gap: var(--space-2); padding: 2px 0; }
+.user-card-project-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-card-foot { margin: var(--space-2) 0 0; }
+
 /* ---------- Users Dashboard ---------- */
 /* Load against the ticket limit. "Full" and "Over" are spelled out as well as tinted, so neither
    rests on colour alone. The bar reuses the Leader Dashboard's track so the two read alike. */

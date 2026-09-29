@@ -5,10 +5,11 @@ import { avatarTone, initials } from '../core/models';
 import { ChangePassword } from './change-password';
 import { Icon } from './icon';
 import { NotificationBell } from './notification-bell';
+import { UserCardTrigger } from './user-card';
 
 @Component({
   selector: 'app-topbar',
-  imports: [RouterLink, ChangePassword, Icon, NotificationBell],
+  imports: [UserCardTrigger, RouterLink, ChangePassword, Icon, NotificationBell],
   template: `
     <header class="topbar">
       <!-- Mark plus the name as real text: the full lockup's wordmark is unreadable at bar size. -->
@@ -32,7 +33,7 @@ import { NotificationBell } from './notification-bell';
         @if (auth.user(); as me) {
           <div class="user-menu">
             <button class="user-button" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-haspopup="menu">
-              <span class="avatar avatar-t{{ toneOf(me.displayName) }}" aria-hidden="true">{{ initialsOf(me.displayName) }}</span>
+              <span class="avatar avatar-t{{ toneOf(me.displayName) }}" [appUserCard]="me.userId" aria-hidden="true">{{ initialsOf(me.displayName) }}</span>
               <span class="user-name">{{ me.displayName }}</span>
               <app-icon name="caret" />
             </button>

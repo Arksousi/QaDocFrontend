@@ -99,6 +99,12 @@ const CASES: Case[] = [
     expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: FORBIDDEN, admin: 204 },
   },
   {
+    name: 'GET /users/{id}/card (avatar hover card) is Admin or Leader only',
+    method: 'get',
+    path: (w) => `/users/${w.userIds['contributor']}/card`,
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: FORBIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN, manager: 200, admin: 200 },
+  },
+  {
     name: 'PUT /projects/{id}/members refuses the retired Manager role',
     method: 'put',
     path: (w) => `/projects/${w.projectId}/members`,
@@ -448,6 +454,35 @@ test.describe('Ticket limits', () => {
 
     await setLimit(null);
     expect((await load()).ticketLimit).toBeNull();
+  });
+});
+
+test.describe('Avatar hover card', () => {
+  interface Card { openTickets: number; closedTickets: number; totalAssigned: number; projects: { projectId: number }[] }
+  const cardOf = async (viewer: Actor, userId: number): Promise<Card> =>
+    (await clients.get(viewer)!.get(`/users/${userId}/card`)).json();
+
+  test('its unfinished count is the same number the Users Dashboard shows', async () => {
+    const id = world.userIds['contributor'];
+    const card = await cardOf('admin', id);
+    const workload: { userId: number; openTickets: number }[] = await (await clients.get('admin')!.get('/users/workload')).json();
+    expect(card.openTickets).toBe(workload.find((w) => w.userId === id)!.openTickets);
+    expect(card.totalAssigned).toBe(card.openTickets + card.closedTickets);
+  });
+
+  test('a Leader is not told about projects they cannot open', async () => {
+    // The admin created both fixture projects, so it is on both; the Leader is only on the first.
+    const adminId: number = (await (await clients.get('admin')!.get('/auth/me')).json()).userId;
+    const seenByAdmin = (await cardOf('admin', adminId)).projects.map((p) => p.projectId);
+    const seenByLeader = (await cardOf('manager', adminId)).projects.map((p) => p.projectId);
+
+    expect(seenByAdmin).toEqual(expect.arrayContaining([world.projectId, world.otherProjectId]));
+    expect(seenByLeader).toContain(world.projectId);
+    expect(seenByLeader).not.toContain(world.otherProjectId);
+  });
+
+  test('an unknown user is a 404', async () => {
+    expect((await clients.get('admin')!.get('/users/999999999/card')).status()).toBe(HIDDEN);
   });
 });
 

@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
+import { UserCardTrigger } from '../../shared/user-card';
 
 interface UserDraft {
   userId: number;
@@ -22,7 +23,7 @@ interface UserDraft {
 /** Admin-only: add people, change roles, deactivate, reset passwords. */
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, DatePipe, Modal, Topbar, Icon],
+  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, Topbar, Icon],
   template: `
     <app-topbar crumb="Users">
       <button class="btn btn-primary" (click)="openAdd()"><app-icon name="plus" /> Add user</button>
@@ -54,7 +55,7 @@ interface UserDraft {
                 <tr [class.row-inactive]="!u.isActive">
                   <td>
                     <span class="person">
-                      <span class="avatar avatar-t{{ toneOf(u.displayName) }}" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                      <span class="avatar avatar-t{{ toneOf(u.displayName) }}" [appUserCard]="u.userId" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
                       {{ u.displayName }}
                       @if (u.userId === auth.user()?.userId) { <span class="muted small">(you)</span> }
                     </span>

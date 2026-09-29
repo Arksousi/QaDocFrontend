@@ -2,12 +2,15 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastService } from './core/toast.service';
 import { Icon } from './shared/icon';
+import { UserCardView } from './shared/user-card';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Icon],
+  imports: [RouterOutlet, Icon, UserCardView],
   template: `
     <router-outlet />
+    <!-- One hover card for every avatar in the app; only Admins and Leaders ever see it. -->
+    <app-user-card />
     <div class="toasts" aria-live="polite">
       @for (t of toasts.toasts(); track t.id) {
         <div class="toast toast-{{ t.kind }}" role="status">

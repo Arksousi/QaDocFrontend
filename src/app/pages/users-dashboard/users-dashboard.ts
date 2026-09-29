@@ -4,6 +4,7 @@ import { ApiService } from '../../core/api.service';
 import { UserWorkload, avatarTone, initials, loadLabel, overLimit } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Topbar } from '../../shared/topbar';
+import { UserCardTrigger } from '../../shared/user-card';
 
 interface WorkloadRow extends UserWorkload {
   /** How much of their limit is used, 0–100; capped so an overloaded bar still fits its track. */
@@ -21,7 +22,7 @@ interface WorkloadRow extends UserWorkload {
  */
 @Component({
   selector: 'app-users-dashboard',
-  imports: [Topbar],
+  imports: [UserCardTrigger, Topbar],
   template: `
     <app-topbar crumb="Users Dashboard" />
 
@@ -50,7 +51,7 @@ interface WorkloadRow extends UserWorkload {
                   <tr>
                     <td>
                       <span class="person">
-                        <span class="avatar avatar-sm avatar-t{{ toneOf(u.displayName) }}" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                        <span class="avatar avatar-sm avatar-t{{ toneOf(u.displayName) }}" [appUserCard]="u.userId" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
                         {{ u.displayName }}
                       </span>
                     </td>

@@ -10,11 +10,12 @@ import { Icon } from './icon';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
 import { TagInput } from './tag-input';
+import { UserCardTrigger } from './user-card';
 
 /** Ticket Details window: an editable Details box, then Comments and History tabs. */
 @Component({
   selector: 'app-ticket-details',
-  imports: [FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker],
+  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker],
   template: `
     <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
@@ -122,7 +123,7 @@ import { TagInput } from './tag-input';
           <section class="comments" role="tabpanel" aria-label="Comments">
             @for (c of t.comments; track c.commentId) {
               <article class="comment">
-                <span class="avatar avatar-t{{ toneOf(c.authorName) }}" aria-hidden="true">{{ initialsOf(c.authorName) }}</span>
+                <span class="avatar avatar-t{{ toneOf(c.authorName) }}" [appUserCard]="c.authorUserId" aria-hidden="true">{{ initialsOf(c.authorName) }}</span>
                 <div class="grow">
                   <header class="comment-head">
                     <strong>{{ c.authorName }}</strong>
@@ -138,7 +139,7 @@ import { TagInput } from './tag-input';
             @if (!auth.isGuest()) {
             <form class="comment-form" (ngSubmit)="postComment()">
               <div class="comment-compose">
-                <span class="avatar avatar-t{{ toneOf(auth.user()?.displayName) }}" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
+                <span class="avatar avatar-t{{ toneOf(auth.user()?.displayName) }}" [appUserCard]="auth.user()?.userId" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
                 <textarea name="text" rows="3" [(ngModel)]="commentText" placeholder="Add a comment…" aria-label="Comment text"
                   (keydown.control.enter)="postComment()"></textarea>
               </div>
@@ -153,7 +154,7 @@ import { TagInput } from './tag-input';
           <section class="history" role="tabpanel" aria-label="History">
             @for (h of t.history; track h.historyId) {
               <div class="history-row">
-                <span class="avatar avatar-sm avatar-t{{ toneOf(h.userName) }}" aria-hidden="true">{{ initialsOf(h.userName) }}</span>
+                <span class="avatar avatar-sm avatar-t{{ toneOf(h.userName) }}" [appUserCard]="h.userId" aria-hidden="true">{{ initialsOf(h.userName) }}</span>
                 <div class="grow">
                   @if (h.field === 'Created') {
                     <strong>{{ h.userName }}</strong> created the ticket

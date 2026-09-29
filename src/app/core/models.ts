@@ -56,6 +56,22 @@ export interface UserOption {
   ticketLimit: number | null;
 }
 
+/** What an Admin or Leader sees on hovering someone's avatar. Counts cover every real project. */
+export interface UserCard {
+  userId: number;
+  displayName: string;
+  username: string;
+  role: Role;
+  isActive: boolean;
+  createdAt: string;
+  ticketLimit: number | null;
+  openTickets: number;
+  closedTickets: number;
+  totalAssigned: number;
+  /** Only projects the viewer can open too. */
+  projects: { projectId: number; projectCode: string; projectName: string; role: ProjectRole }[];
+}
+
 /** One row of the Users Dashboard: an active person's load against their limit. */
 export interface UserWorkload {
   userId: number;
@@ -172,6 +188,7 @@ export interface TicketComment {
 
 export interface TicketHistoryEntry {
   historyId: number;
+  userId: number | null;
   userName: string;
   field: string;
   oldValue: string | null;

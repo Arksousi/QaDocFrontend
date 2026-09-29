@@ -12,6 +12,7 @@ import { Modal } from '../../shared/modal';
 import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
 import { Icon } from '../../shared/icon';
+import { UserCardTrigger } from '../../shared/user-card';
 
 type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignees' | 'state' | 'tags' | 'activityDate';
 type FilterMenu = 'state' | 'type' | 'tag';
@@ -22,7 +23,7 @@ const summarise = (picked: string[], plural: string) =>
 
 @Component({
   selector: 'app-ticket-viewer',
-  imports: [FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
+  imports: [UserCardTrigger, FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
   template: `
     <app-topbar [crumb]="project()?.projectName ?? null">
       @if (canEdit()) {
@@ -234,7 +235,7 @@ const summarise = (picked: string[], plural: string) =>
                            track however many share the ticket, and the tooltip lists everyone. -->
                       @if (t.assignees[0]; as first) {
                         <span class="person" [title]="assigneeNames(t)">
-                          <span class="avatar avatar-sm avatar-t{{ toneOf(first.displayName) }}" aria-hidden="true">{{ initialsOf(first.displayName) }}</span>
+                          <span class="avatar avatar-sm avatar-t{{ toneOf(first.displayName) }}" [appUserCard]="first.userId" aria-hidden="true">{{ initialsOf(first.displayName) }}</span>
                           <span class="person-name">{{ first.displayName }}</span>
                           @if (t.assignees.length > 1) { <span class="count">+{{ t.assignees.length - 1 }}</span> }
                         </span>
