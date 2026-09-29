@@ -486,6 +486,39 @@ test.describe('Avatar hover card', () => {
   });
 });
 
+test.describe('Mentions in comments', () => {
+  interface Note { ticketId: number; kind: string }
+  const mentionsOn = async (actor: Actor, ticketId: number) =>
+    ((await (await clients.get(actor)!.get('/notifications?top=50')).json()) as Note[])
+      .filter((n) => n.ticketId === ticketId && n.kind === 'Mentioned').length;
+
+  test('Contributors mentioned are told; an outsider, a Viewer and the author are dropped', async () => {
+    const { id } = await (await clients.get('admin')!.post('/tickets', {
+      data: {
+        folderId: world.folderId, title: 'Mention check', description: '', ticketType: 'Bug',
+        assignedToUserIds: [], state: 'Open', priority: 2, impact: 'Medium', tags: [],
+      },
+    })).json();
+
+    const u = world.userIds;
+    // Posted by the contributor, who also names themselves: that tells nobody anything.
+    const posted = await clients.get('contributor')!.post(`/tickets/${id}/comments`, {
+      data: { text: 'Can you look?', mentionedUserIds: [u['manager'], u['outsider'], u['viewer'], u['contributor']] },
+    });
+    expect(posted.status()).toBe(200);
+    const comment: { mentions: { userId: number }[] } = await posted.json();
+    expect(comment.mentions.map((m) => m.userId)).toEqual([u['manager']]);
+
+    expect(await mentionsOn('manager', id)).toBe(1);
+    expect(await mentionsOn('viewer', id)).toBe(0);
+    expect(await mentionsOn('contributor', id)).toBe(0);
+
+    // The mention survives a reload of the ticket, so the app can keep highlighting it.
+    const ticket: { comments: { mentions: { userId: number }[] }[] } = await (await clients.get('admin')!.get(`/tickets/${id}`)).json();
+    expect(ticket.comments[0].mentions.map((m) => m.userId)).toEqual([u['manager']]);
+  });
+});
+
 test.describe('Destructive endpoints, allow side', () => {
   test('an Admin can delete a ticket it just created', async () => {
     // Its own sacrificial ticket, so the shared fixture survives.

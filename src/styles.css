@@ -293,6 +293,44 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .score-bar > span { display: block; height: 100%; background: var(--primary); border-radius: inherit; transition: width .4s ease; }
 .score-count { text-align: right; font-variant-numeric: tabular-nums; }
 
+/* ---------- Comment mentions ---------- */
+/* The list opens under the comment box, anchored to it rather than to the caret: a textarea gives
+   no caret position to anchor to, and under the box is where the eye already is. */
+.mention-wrap { position: relative; display: flex; }
+.mention-wrap textarea { flex: 1; }
+.mention-menu { left: 0; right: auto; top: calc(100% + 2px); min-width: 260px; }
+.menu .mention-menu button, .mention-menu button { display: flex; align-items: center; gap: var(--space-2); }
+.mention-menu button.active { background: var(--primary-soft); }
+.mention { color: var(--primary-hover); background: var(--primary-soft); border-radius: var(--radius-sm); padding: 0 2px; font-weight: 600; }
+
+/* ---------- State graph ---------- */
+/* Arrow, state, arrow, state — one row that scrolls sideways once a ticket has been round the
+   loop a few times, rather than wrapping and breaking the left-to-right reading of time. */
+.state-graph { display: flex; align-items: center; gap: var(--space-2); overflow-x: auto; padding: var(--space-2) 0 var(--space-1); }
+.sg-move { flex: none; display: grid; justify-items: center; gap: 2px; min-width: 150px; }
+.sg-label { font-size: var(--fs-md); color: var(--text-2); }
+/* A shaft and a head, drawn in CSS so the arrow stretches with its column and takes the brand colour. */
+.sg-arrow { position: relative; width: 100%; height: 4px; background: var(--primary); margin: var(--space-1) 0; }
+.sg-arrow::after {
+  content: ''; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
+  border-left: 12px solid var(--primary); border-top: 9px solid transparent; border-bottom: 9px solid transparent;
+}
+.sg-by { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-md); color: var(--text-2); white-space: nowrap; }
+.sg-at { font-size: var(--fs-sm); color: var(--muted); }
+.sg-state {
+  flex: none; display: inline-flex; align-items: center; gap: var(--space-2); align-self: center;
+  padding: var(--space-3) var(--space-4); background: var(--primary-soft); border-radius: var(--radius-sm);
+  font-weight: 500; white-space: nowrap; margin-bottom: 38px; /* level with the arrows, not the names below them */
+}
+.sg-current { box-shadow: inset 0 0 0 1px var(--primary-border); }
+/* The dot takes the state's colour from the ticket list, so a state looks the same everywhere. */
+.sg-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.sg-dot-open { background: var(--border-strong); }
+.sg-dot-in-progress { background: var(--primary); }
+.sg-dot-resolved { background: var(--state-resolved-bg); box-shadow: inset 0 0 0 1.5px var(--primary-hover); }
+.sg-dot-retest { background: var(--state-retest-bg); }
+.sg-dot-closed { background: var(--state-closed-bg); }
+
 /* ---------- User hover card ---------- */
 /* Above dialogs (100) and the picture viewer (200): it is opened from avatars inside the ticket
    window too. Fixed, because it is placed from the avatar's position on screen. */

@@ -111,6 +111,8 @@ export interface AppNotification {
   actorName: string | null;
   createdAt: string;
   isRead: boolean;
+  /** Assigned: they were put on the ticket. Mentioned: a comment on it @mentions them. */
+  kind: 'Assigned' | 'Mentioned';
 }
 
 export interface AuthStatus {
@@ -184,6 +186,20 @@ export interface TicketComment {
   authorName: string;
   text: string;
   createdAt: string;
+  /** People the comment @mentions; "@DisplayName" in the text is highlighted for each. */
+  mentions: { userId: number; displayName: string }[];
+}
+
+/**
+ * Splits comment text into plain runs and @mentions, so the template can highlight the mentions
+ * without rendering any HTML from the text. Only names the comment actually recorded count: an "@"
+ * someone merely typed stays plain. Longest names first, so "@Ann Lee" wins over "@Ann".
+ */
+export function mentionSegments(text: string, mentions: { displayName: string }[]): { text: string; mention: boolean }[] {
+  const names = [...new Set(mentions.map((m) => m.displayName))].sort((a, b) => b.length - a.length);
+  if (!names.length) return [{ text, mention: false }];
+  const pattern = new RegExp(`(${names.map((n) => '@' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  return text.split(pattern).filter((part) => part !== '').map((part) => ({ text: part, mention: names.some((n) => part === '@' + n) }));
 }
 
 export interface TicketHistoryEntry {

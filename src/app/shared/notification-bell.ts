@@ -29,13 +29,17 @@ import { Icon } from './icon';
           @for (n of notes.items(); track n.notificationId) {
             <button role="menuitem" class="bell-item" [class.unread]="!n.isRead" (click)="openTicket(n)">
               <span class="bell-text">
-                <strong>{{ n.actorName ?? 'Someone' }}</strong> assigned <span class="mono">{{ n.ticketKey }}</span> to you
+                @if (n.kind === 'Mentioned') {
+                  <strong>{{ n.actorName ?? 'Someone' }}</strong> mentioned you on <span class="mono">{{ n.ticketKey }}</span>
+                } @else {
+                  <strong>{{ n.actorName ?? 'Someone' }}</strong> assigned <span class="mono">{{ n.ticketKey }}</span> to you
+                }
               </span>
               <span class="bell-title">{{ n.title }}</span>
               <span class="muted small">{{ n.createdAt | date: 'MMM d, h:mm a' }}</span>
             </button>
           } @empty {
-            <p class="muted small bell-empty">{{ loading() ? 'Loading…' : 'Nothing yet. You will see tickets assigned to you here.' }}</p>
+            <p class="muted small bell-empty">{{ loading() ? 'Loading…' : 'Nothing yet. Tickets assigned to you, and comments that mention you, show up here.' }}</p>
           }
         </div>
       }

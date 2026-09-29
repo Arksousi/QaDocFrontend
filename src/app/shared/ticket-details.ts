@@ -3,9 +3,10 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, UserOption, avatarTone, initials, slug } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, TicketComment, UserOption, avatarTone, initials, mentionSegments, slug } from '../core/models';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
+import { StateGraph } from './state-graph';
 import { Icon } from './icon';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
@@ -15,7 +16,7 @@ import { UserCardTrigger } from './user-card';
 /** Ticket Details window: an editable Details box, then Comments and History tabs. */
 @Component({
   selector: 'app-ticket-details',
-  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker],
+  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker, StateGraph],
   template: `
     <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
@@ -75,9 +76,15 @@ import { UserCardTrigger } from './user-card';
               </select>
             </label>
 
-            <div class="detail span-2">
+            <!-- One column, not two: it pairs with Impact on one row instead of taking a row alone. -->
+            <div class="detail">
               <label class="detail-label" for="details-tags">Tag</label>
               <app-tag-input inputId="details-tags" [readonly]="!canEdit()" [tags]="form.tags" (tagsChange)="form.tags = $event; touch()" [suggestions]="suggestions().tags" />
+            </div>
+
+            <div class="detail span-2">
+              <span class="detail-label">State Graph</span>
+              <app-state-graph [ticket]="t" />
             </div>
 
             <div class="detail span-2">
@@ -129,7 +136,8 @@ import { UserCardTrigger } from './user-card';
                     <strong>{{ c.authorName }}</strong>
                     <time class="muted small" [attr.datetime]="c.createdAt">{{ c.createdAt | date: 'MMMM d, y, h:mm a' }}</time>
                   </header>
-                  <p class="prose">{{ c.text }}</p>
+                  <!-- On one line: .prose keeps whitespace, so any line break here would show. -->
+                  <p class="prose">@for (seg of segmentsOf(c); track $index) {@if (seg.mention) {<span class="mention">{{ seg.text }}</span>} @else {{{ seg.text }}}}</p>
                 </div>
               </article>
             } @empty {
@@ -140,11 +148,27 @@ import { UserCardTrigger } from './user-card';
             <form class="comment-form" (ngSubmit)="postComment()">
               <div class="comment-compose">
                 <span class="avatar avatar-t{{ toneOf(auth.user()?.displayName) }}" [appUserCard]="auth.user()?.userId" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
-                <textarea name="text" rows="3" [(ngModel)]="commentText" placeholder="Add a comment…" aria-label="Comment text"
-                  (keydown.control.enter)="postComment()"></textarea>
+                <div class="mention-wrap grow">
+                  <textarea name="text" rows="3" [(ngModel)]="commentText" placeholder="Add a comment… Type @ to mention someone" aria-label="Comment text"
+                    aria-autocomplete="list" [attr.aria-expanded]="mentionOptions().length > 0"
+                    (keydown.control.enter)="postComment()" (input)="onCommentInput($event)" (keydown)="onCommentKeydown($event)"
+                    (blur)="mentionQuery.set(null)"></textarea>
+                  @if (mentionOptions().length) {
+                    <div class="menu mention-menu" role="listbox" aria-label="People to mention">
+                      @for (u of mentionOptions(); track u.userId; let i = $index) {
+                        <!-- mousedown, not click: click would blur the textarea first and close this list. -->
+                        <button type="button" role="option" [class.active]="i === mentionIndex()" [attr.aria-selected]="i === mentionIndex()"
+                          (mousedown)="$event.preventDefault(); pickMention(u)">
+                          <span class="avatar avatar-sm avatar-t{{ toneOf(u.displayName) }}" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                          {{ u.displayName }} <span class="muted small">{{ '@' + u.username }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
               </div>
               <div class="comment-form-row">
-                <span class="muted small">Posting as {{ auth.user()?.displayName }} · Ctrl+Enter to post</span>
+                <span class="muted small">Posting as {{ auth.user()?.displayName }} · @ to mention · Ctrl+Enter to post</span>
                 <button type="submit" class="btn btn-primary push-left" [disabled]="posting() || !commentText.trim()">Comment</button>
               </div>
             </form>
@@ -232,6 +256,78 @@ export class TicketDetails {
   form: SaveTicket = emptyForm();
   commentText = '';
 
+  // ---------- @mentions ----------
+  /** What follows the "@" being typed, or null when no mention is in progress. */
+  readonly mentionQuery = signal<string | null>(null);
+  readonly mentionIndex = signal(0);
+  /** Where that "@" sits in the text, so picking a name replaces exactly the part typed. */
+  private mentionStart = -1;
+  private commentBox?: HTMLTextAreaElement;
+  /** People picked so far, by id. Sent only if their "@Name" is still in the text when posting. */
+  private readonly picked = new Map<number, string>();
+
+  /** Who can be mentioned: the project's Contributors (and Admins), as for Assigned To — not yourself. */
+  readonly mentionOptions = computed(() => {
+    const q = this.mentionQuery();
+    if (q === null) return [];
+    const me = this.auth.user()?.userId;
+    const needle = q.toLowerCase();
+    return this.users().filter((u) => u.userId !== me && u.displayName.toLowerCase().includes(needle)).slice(0, 6);
+  });
+
+  segmentsOf(c: TicketComment) {
+    return mentionSegments(c.text, c.mentions ?? []);
+  }
+
+  onCommentInput(event: Event) {
+    const box = (this.commentBox = event.target as HTMLTextAreaElement);
+    const before = box.value.slice(0, box.selectionStart ?? box.value.length);
+    // An "@" at the start or after a space, then up to a few words with no newline: "@Moh", "@Mohammad N".
+    const match = /(?:^|\s)@([^@\n]{0,40})$/.exec(before);
+    if (!match) {
+      this.mentionQuery.set(null);
+      return;
+    }
+    this.mentionStart = before.length - match[1].length - 1;
+    this.mentionQuery.set(match[1]);
+    this.mentionIndex.set(0);
+  }
+
+  onCommentKeydown(event: KeyboardEvent) {
+    this.commentBox = event.target as HTMLTextAreaElement;
+    const options = this.mentionOptions();
+    if (!options.length || event.ctrlKey) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      this.mentionIndex.set((this.mentionIndex() + step + options.length) % options.length);
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      this.pickMention(options[this.mentionIndex()]);
+    } else if (event.key === 'Escape') {
+      // Close the list, not the ticket window underneath it.
+      event.preventDefault();
+      event.stopPropagation();
+      this.mentionQuery.set(null);
+    }
+  }
+
+  pickMention(u: UserOption) {
+    const box = this.commentBox;
+    if (!box || this.mentionStart < 0) return;
+    const caret = box.selectionStart ?? this.commentText.length;
+    const insert = `@${u.displayName} `;
+    this.commentText = this.commentText.slice(0, this.mentionStart) + insert + this.commentText.slice(caret);
+    this.picked.set(u.userId, u.displayName);
+    this.mentionQuery.set(null);
+    const at = this.mentionStart + insert.length;
+    // After the new text has rendered into the box, put the caret just past the name.
+    requestAnimationFrame(() => {
+      box.focus();
+      box.setSelectionRange(at, at);
+    });
+  }
+
   /** Re-evaluated whenever a field changes (touch bumps the version signal). */
   readonly dirty = computed(() => {
     this.version();
@@ -303,8 +399,11 @@ export class TicketDetails {
     if (!t || !text || this.posting()) return;
     this.posting.set(true);
     try {
-      const comment = await this.api.addComment(t.ticketId, text);
+      // A name picked and then deleted from the text is not a mention any more.
+      const mentioned = [...this.picked].filter(([, name]) => text.includes(`@${name}`)).map(([id]) => id);
+      const comment = await this.api.addComment(t.ticketId, text, mentioned);
       this.commentText = '';
+      this.picked.clear();
       // Keep unsaved Details edits; only append the comment and refresh the activity date.
       this.ticket.set({ ...t, comments: [...t.comments, comment], commentCount: t.commentCount + 1, activityDate: comment.createdAt });
       this.changed.emit();

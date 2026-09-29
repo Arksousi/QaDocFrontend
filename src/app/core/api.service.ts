@@ -89,8 +89,9 @@ export class ApiService {
   createTicket = (t: SaveTicket) => firstValueFrom(this.http.post<Created>(`${this.base}/tickets`, t));
   updateTicket = (id: number, t: SaveTicket) => firstValueFrom(this.http.put<void>(`${this.base}/tickets/${id}`, t));
   deleteTicket = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/tickets/${id}`));
-  addComment = (ticketId: number, text: string) =>
-    firstValueFrom(this.http.post<TicketComment>(`${this.base}/tickets/${ticketId}/comments`, { text }));
+  /** Each id in mentionedUserIds is notified; the API drops anyone who is not a Contributor there. */
+  addComment = (ticketId: number, text: string, mentionedUserIds: number[] = []) =>
+    firstValueFrom(this.http.post<TicketComment>(`${this.base}/tickets/${ticketId}/comments`, { text, mentionedUserIds }));
 
   // Attachments (videos). Uploaded separately from the ticket, then referenced by id.
   uploadAttachment(projectId: number, file: File) {
