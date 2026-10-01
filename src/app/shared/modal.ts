@@ -1,4 +1,5 @@
-import { Component, HostListener, input, output } from '@angular/core';
+import { Component, HostListener, inject, input, output } from '@angular/core';
+import { ConfirmService } from '../core/confirm.service';
 import { Icon } from './icon';
 
 @Component({
@@ -21,9 +22,12 @@ export class Modal {
   readonly heading = input.required<string>();
   readonly wide = input(false);
   readonly closed = output<void>();
+  private readonly confirm = inject(ConfirmService);
 
   @HostListener('document:keydown.escape')
   onEscape() {
+    // A confirm asked on this dialog's behalf answers Esc itself; this one stays open.
+    if (this.confirm.request()) return;
     this.closed.emit();
   }
 

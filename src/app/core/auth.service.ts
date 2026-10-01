@@ -64,6 +64,11 @@ export class AuthService {
     this.router.navigate(['/login'], { queryParams: returnUrl ? { returnUrl } : {} });
   }
 
+  /** After saving your own profile: the account everywhere (topbar, menus) shows the new details. */
+  updateUser(user: User) {
+    this.user.set(user);
+  }
+
   private accept(response: LoginResponse) {
     this.token = response.token;
     try {

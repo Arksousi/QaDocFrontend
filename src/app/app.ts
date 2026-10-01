@@ -2,15 +2,18 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ToastService } from './core/toast.service';
 import { Icon } from './shared/icon';
+import { ConfirmDialog } from './shared/confirm-dialog';
 import { UserCardView } from './shared/user-card';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Icon, UserCardView],
+  imports: [RouterOutlet, Icon, UserCardView, ConfirmDialog],
   template: `
     <router-outlet />
     <!-- One hover card for every avatar in the app; only Admins and Leaders ever see it. -->
     <app-user-card />
+    <!-- The app's own "are you sure?", asked through ConfirmService from anywhere. -->
+    <app-confirm-dialog />
     <div class="toasts" aria-live="polite">
       @for (t of toasts.toasts(); track t.id) {
         <div class="toast toast-{{ t.kind }}" role="status">

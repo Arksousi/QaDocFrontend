@@ -8,7 +8,7 @@ import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
-import { UserCardTrigger } from '../../shared/user-card';
+import { Avatar } from '../../shared/avatar';
 
 interface UserDraft {
   userId: number;
@@ -23,7 +23,7 @@ interface UserDraft {
 /** Admin-only: add people, change roles, deactivate, reset passwords. */
 @Component({
   selector: 'app-users',
-  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, Topbar, Icon],
+  imports: [Avatar, FormsModule, DatePipe, Modal, Topbar, Icon],
   template: `
     <app-topbar crumb="Users">
       <button class="btn btn-primary" (click)="openAdd()"><app-icon name="plus" /> Add user</button>
@@ -55,7 +55,7 @@ interface UserDraft {
                 <tr [class.row-inactive]="!u.isActive">
                   <td>
                     <span class="person">
-                      <span class="avatar avatar-t{{ toneOf(u.displayName) }}" [appUserCard]="u.userId" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                      <app-avatar [userId]="u.userId" [name]="u.displayName" />
                       {{ u.displayName }}
                       @if (u.userId === auth.user()?.userId) { <span class="muted small">(you)</span> }
                     </span>
@@ -66,7 +66,7 @@ interface UserDraft {
                   <td>
                     @if (u.isActive) { <span class="status-dot active"></span> Active } @else { <span class="status-dot"></span> Deactivated }
                   </td>
-                  <td class="muted nowrap">{{ u.createdAt | date: 'MMM d, y' }}</td>
+                  <td class="muted nowrap col-date">{{ u.createdAt | date: 'MMM d, y' }}</td>
                   <td class="nowrap actions">
                     <button class="btn btn-ghost btn-sm" (click)="openEdit(u)">Edit</button>
                     @if (u.userId !== auth.user()?.userId) {

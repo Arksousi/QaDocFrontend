@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { quiet } from './toast.service';
-import { AppNotification, Attachment, Folder, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserCard, UserOption, UserWorkload } from './models';
+import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserCard, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -127,6 +127,18 @@ export class ApiService {
     firstValueFrom(this.http.put<void>(`${this.base}/users/${id}`, u));
   /** The avatar hover card. Admins and Leaders. */
   userCard = (id: number) => firstValueFrom(this.http.get<UserCard>(`${this.base}/users/${id}/card`, { context: quiet() }));
+
+  // Profile: always your own. Pictures are fetched as blobs because an <img> cannot send the token.
+  updateProfile = (p: ProfileUpdate) => firstValueFrom(this.http.put<User>(`${this.base}/profile`, p));
+  uploadAvatar(picture: Blob) {
+    const form = new FormData();
+    form.append('file', picture, 'avatar.webp');
+    return firstValueFrom(this.http.post<{ avatarVersion: number }>(`${this.base}/profile/avatar`, form));
+  }
+  deleteAvatar = () => firstValueFrom(this.http.delete<{ avatarVersion: number }>(`${this.base}/profile/avatar`));
+  avatarVersions = () => firstValueFrom(this.http.get<AvatarVersion[]>(`${this.base}/users/avatars`, { context: quiet() }));
+  avatarBlob = (userId: number, version: number) =>
+    firstValueFrom(this.http.get(`${this.base}/users/${userId}/avatar`, { params: { v: version }, responseType: 'blob', context: quiet() }));
   /** Users Dashboard. Admins and Leaders. */
   userWorkload = () => firstValueFrom(this.http.get<UserWorkload[]>(`${this.base}/users/workload`));
   /** Admin only. null clears the limit. */

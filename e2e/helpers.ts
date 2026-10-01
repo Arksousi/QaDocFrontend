@@ -78,6 +78,28 @@ export const TICKETS = [
 
 export const TAGS = ['billing', 'hardware', 'ui'];
 
+/** An account that can edit the project, for the tests that change tickets and folders. */
+export const EDITOR = { ...GUEST, userId: 7, username: 'dana.lee', displayName: 'Dana Lee', role: 'Leader' as const, isGuest: false };
+
+const person = (userId: number, displayName: string, openTickets: number, ticketLimit: number | null) =>
+  ({ userId, displayName, username: displayName.toLowerCase().replace(' ', '.'), openTickets, ticketLimit });
+
+/** People on the project: one of each load (comfortable, nearly full, full, no limit), and enough of
+    them, with the outsider, for the picker to offer its search box. */
+export const MEMBERS = [
+  person(7, 'Dana Lee', 1, 5),
+  person(8, 'Sam Ortiz', 4, 5),
+  person(9, 'Rana Haddad', 5, 5),
+  person(10, 'Kai Brook', 2, null),
+  person(12, 'Lina Jbreel', 0, 5),
+  person(13, 'Omar Aziz', 3, 8),
+];
+/** An active account outside the project, offered to a manager as "Add to project as Contributor". */
+export const OUTSIDER = person(11, 'Noor Saleh', 0, 5);
+
+/** An empty folder beside the seeded one, so a manager may delete it. */
+export const EMPTY_FOLDER = { ...FOLDER, folderId: 11, folderName: 'Archive', folderCode: 'ARC', ticketCount: 0, openTicketCount: 0 };
+
 /**
  * Serves the whole API from memory so the suite is a pure front-end test: no backend,
  * no database, and no chance of touching the live Railway instance.
@@ -86,8 +108,20 @@ export const TAGS = ['billing', 'hardware', 'ui'];
  * for* rather than only what it drew — that is how the filter tests check that ticking
  * a box produces `?state=Open` instead of relying on client-side filtering.
  */
-export async function mockApi(page: Page, options: { needsSetup?: boolean } = {}) {
+export async function mockApi(page: Page, options: { needsSetup?: boolean; user?: typeof GUEST; editor?: boolean } = {}) {
+  // `editor` signs in as EDITOR, who manages the project: people to assign, an empty folder to
+  // delete, and saves that succeed. Without it, the read-only guest tour.
+  const editor = options.editor ?? false;
+  // Whoever the sign-in answers as; the guest unless a test needs an account of its own.
+  const user = options.user ?? (editor ? EDITOR : GUEST);
+  const project = editor ? { ...PROJECT, myRole: 'Manager' as const } : PROJECT;
   const ticketRequests: URL[] = [];
+  /** Every write the app sent, as "METHOD /path" with its body, for tests to assert on. */
+  const writes: { call: string; body: unknown }[] = [];
+  // The signed-in account as the Profile page edits it, and their picture (none to start).
+  let profile: Record<string, unknown> = { ...user };
+  let avatarVersion = 0;
+  let hasAvatar = false;
 
   // The API lives on another origin, so a fulfilled response is still subject to CORS,
   // and the Authorization header makes the browser send a preflight OPTIONS first.
@@ -110,22 +144,55 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean } = {}
 
     // --- auth ---
     if (path === '/auth/status') return json({ needsSetup: options.needsSetup ?? false });
-    if (path === '/auth/me') return json(GUEST);
+    if (path === '/auth/me') return json(profile);
     if (path === '/auth/guest' || path === '/auth/login') {
       // A wrong password is the one failure path the sign-in form has to handle.
       const body = (route.request().postDataJSON() ?? {}) as { password?: string };
       if (path === '/auth/login' && body.password !== 'correct-horse') {
         return json({ detail: 'Invalid username or password.' }, 401);
       }
-      return json({ token: 'fake.jwt.token', expiresAt: '2099-01-01T00:00:00Z', user: GUEST });
+      return json({ token: 'fake.jwt.token', expiresAt: '2099-01-01T00:00:00Z', user });
     }
 
+    // --- writes (editor only): recorded, then answered the way the API would ---
+    const method = route.request().method();
+    if (method !== 'GET') {
+      const multipart = (route.request().headers()['content-type'] ?? '').startsWith('multipart/');
+      const body = multipart ? null : route.request().postDataJSON();
+      writes.push({ call: `${method} ${path}`, body });
+      if (path === '/profile' && method === 'PUT') {
+        profile = { ...profile, ...(body as object) };
+        return json(profile);
+      }
+      if (path === '/profile/avatar') {
+        avatarVersion += 1;
+        hasAvatar = method === 'POST';
+        return json({ avatarVersion });
+      }
+      return route.fulfill({ status: 204, headers: cors });
+    }
+    if (path === '/users/avatars') return json(hasAvatar ? [{ userId: user.userId, version: avatarVersion }] : []);
+
     // --- projects ---
-    if (path === '/projects' || path === '/projects/recent') return json([PROJECT]);
-    if (path === '/projects/1') return json(PROJECT);
-    if (path === '/projects/1/folders') return json([FOLDER]);
+    if (path === '/projects' || path === '/projects/recent') return json([project]);
+    if (path === '/projects/1') return json(project);
+    if (path === '/projects/1/folders') return json(editor ? [FOLDER, EMPTY_FOLDER] : [FOLDER]);
     if (path === '/projects/1/suggestions') return json({ tags: TAGS });
-    if (path === '/projects/1/assignees') return json([]);
+    if (path === '/projects/1/assignees') return json(editor ? MEMBERS : []);
+    if (path === '/users/options') return json([...MEMBERS, OUTSIDER]);
+    if (path === '/notifications/unread-count') return json({ count: 0 });
+    if (path === '/notifications') return json([]);
+
+    // --- one ticket, as the ticket window loads it ---
+    const one = /^\/tickets\/(\d+)$/.exec(path);
+    if (one) {
+      const t = TICKETS.find((x) => x.ticketId === Number(one[1]));
+      if (!t) return json({ detail: 'Not found' }, 404);
+      return json({
+        ...t,
+        history: [{ historyId: 1, userId: 7, userName: 'Dana Lee', field: 'Created', oldValue: null, newValue: null, changedAt: t.createdAt }],
+      });
+    }
 
     // --- tickets: filtered in the mock the same way the API would ---
     if (path === '/projects/1/tickets') {
@@ -151,6 +218,7 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean } = {}
     /** The most recent /tickets query the app sent. */
     lastTicketQuery: () => ticketRequests.at(-1),
     ticketRequests,
+    writes,
   };
 }
 

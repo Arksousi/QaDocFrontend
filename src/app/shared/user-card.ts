@@ -3,6 +3,7 @@ import { Component, Directive, ElementRef, HostListener, computed, inject, input
 import { AuthService } from '../core/auth.service';
 import { avatarTone, initials, overLimit } from '../core/models';
 import { UserCardService } from '../core/user-card.service';
+import { AvatarService } from '../core/avatar.service';
 
 /** The card is this wide; used to keep it on screen. */
 const CARD_WIDTH = 300;
@@ -45,10 +46,16 @@ export class UserCardTrigger {
         (mouseenter)="cards.keep()" (mouseleave)="cards.hoverEnd()">
         @if (o.card; as c) {
           <div class="user-card-head">
-            <span class="avatar avatar-t{{ toneOf(c.displayName) }}" aria-hidden="true">{{ initialsOf(c.displayName) }}</span>
-            <div class="grow">
+            <!-- Drawn here rather than with <app-avatar>, which itself uses this card: no import cycle. -->
+            @if (avatars.src(c.userId); as url) {
+              <img class="avatar avatar-lg avatar-img" [src]="url" alt="" aria-hidden="true" />
+            } @else {
+              <span class="avatar avatar-lg avatar-t{{ toneOf(c.displayName) }}" aria-hidden="true">{{ initialsOf(c.displayName) }}</span>
+            }
+            <div class="grow user-card-who">
               <strong class="user-card-name">{{ c.displayName }}</strong>
-              <span class="muted small">{{ '@' + c.username }}</span>
+              <span class="muted small">{{ '@' + c.username }}@if (c.jobTitle) { · {{ c.jobTitle }} }</span>
+              @if (c.email) { <a class="small user-card-email" [href]="'mailto:' + c.email">{{ c.email }}</a> }
             </div>
             <span class="role role-{{ c.role.toLowerCase() }}">{{ c.role }}</span>
           </div>
@@ -111,6 +118,7 @@ export class UserCardTrigger {
 })
 export class UserCardView {
   protected readonly cards = inject(UserCardService);
+  protected readonly avatars = inject(AvatarService);
   readonly toneOf = avatarTone;
   readonly initialsOf = initials;
 

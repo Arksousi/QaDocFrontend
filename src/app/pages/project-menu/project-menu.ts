@@ -5,6 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Project, canManageMembers } from '../../core/models';
+import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { Modal } from '../../shared/modal';
@@ -108,7 +109,7 @@ import { ProjectMembers } from './project-members';
                     </td>
                     <td class="num">{{ p.openTicketCount }}</td>
                     <td class="num">{{ p.ticketCount }}</td>
-                    <td class="muted nowrap">{{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</td>
+                    <td class="muted nowrap col-date">{{ p.lastActivity | date: 'MMM d, y, h:mm a' }}</td>
                     <td class="w-actions" (click)="$event.stopPropagation()">
                       <div class="row-menu">
                         <button class="icon-btn" (click)="toggleMenu('row', p)"
@@ -207,6 +208,7 @@ export class ProjectMenuPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   private readonly host = inject(ElementRef<HTMLElement>);
   protected readonly auth = inject(AuthService);
 
@@ -257,9 +259,12 @@ export class ProjectMenuPage implements OnInit {
   async setDemo(p: Project, isDemo: boolean) {
     if (this.busyDemo()) return;
     this.menuKey.set(null);
-    if (isDemo && !confirm(
-      `Show “${p.projectName}” to guests as sample data?\n\n`
-      + 'It will disappear from your projects until you move it back.')) return;
+    if (isDemo && !(await this.confirm.ask({
+      title: 'Make this a demo project?',
+      message: `Guests will see “${p.projectName}” as sample data. It will disappear from your projects until you move it back.`,
+      confirmLabel: 'Make demo project',
+      tone: 'warning',
+    }))) return;
 
     this.busyDemo.set(true);
     try {

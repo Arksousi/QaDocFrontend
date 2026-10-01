@@ -5,7 +5,7 @@ import { AppNotification } from '../core/models';
 import { NotificationService } from '../core/notification.service';
 import { Icon } from './icon';
 
-/** The top bar's bell: tickets someone else assigned to you. Opening a row opens that ticket. */
+/** The top bar's bell: assignments, mentions and Retest moves on your tickets. Opening a row opens that ticket. */
 @Component({
   selector: 'app-notification-bell',
   imports: [DatePipe, Icon],
@@ -31,6 +31,9 @@ import { Icon } from './icon';
               <span class="bell-text">
                 @if (n.kind === 'Mentioned') {
                   <strong>{{ n.actorName ?? 'Someone' }}</strong> mentioned you on <span class="mono">{{ n.ticketKey }}</span>
+                } @else if (n.kind === 'Retest') {
+                  <strong>{{ n.actorName ?? 'Someone' }}</strong> moved <span class="mono">{{ n.ticketKey }}</span> to
+                  <span class="state state-retest">Retest</span>
                 } @else {
                   <strong>{{ n.actorName ?? 'Someone' }}</strong> assigned <span class="mono">{{ n.ticketKey }}</span> to you
                 }
@@ -39,7 +42,7 @@ import { Icon } from './icon';
               <span class="muted small">{{ n.createdAt | date: 'MMM d, h:mm a' }}</span>
             </button>
           } @empty {
-            <p class="muted small bell-empty">{{ loading() ? 'Loading…' : 'Nothing yet. Tickets assigned to you, and comments that mention you, show up here.' }}</p>
+            <p class="muted small bell-empty">{{ loading() ? 'Loading…' : 'Nothing yet. Tickets assigned to you, comments that mention you, and your tickets sent to Retest show up here.' }}</p>
           }
         </div>
       }

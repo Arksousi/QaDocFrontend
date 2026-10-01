@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, TicketComment, UserOption, avatarTone, initials, mentionSegments, slug } from '../core/models';
+import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
 import { StateGraph } from './state-graph';
@@ -11,24 +12,21 @@ import { Icon } from './icon';
 import { Modal } from './modal';
 import { RichText, toRichText } from './rich-text';
 import { TagInput } from './tag-input';
-import { UserCardTrigger } from './user-card';
+import { Avatar } from './avatar';
 
 /** Ticket Details window: an editable Details box, then Comments and History tabs. */
 @Component({
   selector: 'app-ticket-details',
-  imports: [UserCardTrigger, FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker, StateGraph],
+  imports: [Avatar, FormsModule, DatePipe, Modal, TagInput, RichText, Icon, AssigneePicker, StateGraph],
   template: `
     <app-modal [heading]="ticket() ? ticket()!.ticketKey + ' · ' + ticket()!.title : 'Ticket'" [wide]="true" (closed)="close()">
       @if (ticket(); as t) {
         <section class="details-box" aria-label="Details">
           <h3 class="box-title">Details</h3>
           <form id="ticketDetailsForm" class="details-grid" (ngSubmit)="save()">
-            <div class="detail">
-              <span class="detail-label">Activity Date</span>
-              <span class="detail-value">{{ t.activityDate | date: 'MMMM d, y, h:mm a' }}</span>
-            </div>
-
-            <label class="detail span-2">
+            <!-- Three columns: Type / Assigned To / Assigned By, then State / Priority / Impact, then Tag
+                 across two with the read-only Activity Date under the other read-only value. -->
+            <label class="detail span-all">
               <span class="detail-label">Title *</span>
               <input name="title" [(ngModel)]="form.title" required maxlength="200" [readonly]="!canEdit()" (ngModelChange)="touch()" />
             </label>
@@ -40,14 +38,6 @@ import { UserCardTrigger } from './user-card';
               </select>
             </label>
             <div class="detail">
-              <span class="detail-label">Assigned By</span>
-              <span class="detail-value">
-                @if (assignedBy()) { {{ assignedBy() }} } @else { <span class="muted">—</span> }
-              </span>
-            </div>
-
-            <!-- A div, not a <label>: a label around several buttons hands every click to the first. -->
-            <div class="detail span-2">
               <span class="detail-label">Assigned To</span>
               <app-assignee-picker label="Assigned To" [readonly]="!canEdit()"
                 [members]="users()" [outsiders]="outsiders()" [current]="t.assignees"
@@ -56,6 +46,18 @@ import { UserCardTrigger } from './user-card';
                 <span class="hint">Saving adds {{ joinedNames() }} to this project as {{ joining().length === 1 ? 'a Contributor' : 'Contributors' }}.</span>
               }
             </div>
+            <div class="detail">
+              <span class="detail-label">Assigned By</span>
+              <span class="detail-value">
+                @if (assignedBy(); as by) {
+                  <app-avatar size="sm" [userId]="by.userId" [name]="by.name" />
+                  <span class="detail-value-text">{{ by.name }}</span>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </span>
+            </div>
+
             <label class="detail">
               <span class="detail-label">State</span>
               <select name="state" [(ngModel)]="form.state" [disabled]="!canEdit()" (ngModelChange)="touch()"
@@ -76,18 +78,21 @@ import { UserCardTrigger } from './user-card';
               </select>
             </label>
 
-            <!-- One column, not two: it pairs with Impact on one row instead of taking a row alone. -->
-            <div class="detail">
+            <div class="detail span-2">
               <label class="detail-label" for="details-tags">Tag</label>
               <app-tag-input inputId="details-tags" [readonly]="!canEdit()" [tags]="form.tags" (tagsChange)="form.tags = $event; touch()" [suggestions]="suggestions().tags" />
             </div>
+            <div class="detail">
+              <span class="detail-label">Activity Date</span>
+              <span class="detail-value">{{ t.activityDate | date: 'MMMM d, y, h:mm a' }}</span>
+            </div>
 
-            <div class="detail span-2">
+            <div class="detail span-all">
               <span class="detail-label">State Graph</span>
               <app-state-graph [ticket]="t" />
             </div>
 
-            <div class="detail span-2">
+            <div class="detail span-all">
               <span class="detail-label">Description</span>
               <app-rich-text [value]="form.description" (valueChange)="form.description = $event; touch()"
                 [projectId]="t.projectId" [readonly]="!canEdit()"
@@ -130,7 +135,7 @@ import { UserCardTrigger } from './user-card';
           <section class="comments" role="tabpanel" aria-label="Comments">
             @for (c of t.comments; track c.commentId) {
               <article class="comment">
-                <span class="avatar avatar-t{{ toneOf(c.authorName) }}" [appUserCard]="c.authorUserId" aria-hidden="true">{{ initialsOf(c.authorName) }}</span>
+                <app-avatar [userId]="c.authorUserId" [name]="c.authorName" />
                 <div class="grow">
                   <header class="comment-head">
                     <strong>{{ c.authorName }}</strong>
@@ -147,7 +152,7 @@ import { UserCardTrigger } from './user-card';
             @if (!auth.isGuest()) {
             <form class="comment-form" (ngSubmit)="postComment()">
               <div class="comment-compose">
-                <span class="avatar avatar-t{{ toneOf(auth.user()?.displayName) }}" [appUserCard]="auth.user()?.userId" aria-hidden="true">{{ initialsOf(auth.user()?.displayName) }}</span>
+                <app-avatar [userId]="auth.user()?.userId" [name]="auth.user()?.displayName" />
                 <div class="mention-wrap grow">
                   <textarea name="text" rows="3" [(ngModel)]="commentText" placeholder="Add a comment… Type @ to mention someone" aria-label="Comment text"
                     aria-autocomplete="list" [attr.aria-expanded]="mentionOptions().length > 0"
@@ -159,7 +164,7 @@ import { UserCardTrigger } from './user-card';
                         <!-- mousedown, not click: click would blur the textarea first and close this list. -->
                         <button type="button" role="option" [class.active]="i === mentionIndex()" [attr.aria-selected]="i === mentionIndex()"
                           (mousedown)="$event.preventDefault(); pickMention(u)">
-                          <span class="avatar avatar-sm avatar-t{{ toneOf(u.displayName) }}" aria-hidden="true">{{ initialsOf(u.displayName) }}</span>
+                          <app-avatar size="sm" [userId]="u.userId" [name]="u.displayName" [card]="false" />
                           {{ u.displayName }} <span class="muted small">{{ '@' + u.username }}</span>
                         </button>
                       }
@@ -178,7 +183,7 @@ import { UserCardTrigger } from './user-card';
           <section class="history" role="tabpanel" aria-label="History">
             @for (h of t.history; track h.historyId) {
               <div class="history-row">
-                <span class="avatar avatar-sm avatar-t{{ toneOf(h.userName) }}" [appUserCard]="h.userId" aria-hidden="true">{{ initialsOf(h.userName) }}</span>
+                <app-avatar size="sm" [userId]="h.userId" [name]="h.userName" />
                 <div class="grow">
                   @if (h.field === 'Created') {
                     <strong>{{ h.userName }}</strong> created the ticket
@@ -225,6 +230,7 @@ import { UserCardTrigger } from './user-card';
 export class TicketDetails {
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   protected readonly auth = inject(AuthService);
 
   readonly ticketId = input.required<number>();
@@ -335,9 +341,11 @@ export class TicketDetails {
     return !!t && JSON.stringify(toForm(t)) !== JSON.stringify(normalise(this.form));
   });
 
-  /** Everyone who put someone on this ticket, once each. */
-  readonly assignedBy = computed(() =>
-    [...new Set((this.ticket()?.assignees ?? []).map((a) => a.assignedByName).filter((n): n is string => !!n))].join(', '));
+  /** Who put the assignee on this ticket, with their id so their picture shows. One owner per ticket, so one assigner. */
+  readonly assignedBy = computed(() => {
+    const a = (this.ticket()?.assignees ?? []).find((x) => x.assignedByName);
+    return a ? { name: a.assignedByName!, userId: a.assignedByUserId ?? null } : null;
+  });
 
   /** Outsiders the unsaved form assigns to: saving will make them Contributors. */
   readonly joining = computed(() => {
@@ -368,8 +376,13 @@ export class TicketDetails {
     if (t) this.load(t);
   }
 
-  close() {
-    if (this.dirty() && !confirm('Discard unsaved changes to this ticket?')) return;
+  async close() {
+    if (this.dirty() && !(await this.confirm.ask({
+      title: 'Discard changes?',
+      message: 'Your edits to this ticket have not been saved.',
+      confirmLabel: 'Discard changes',
+      tone: 'danger',
+    }))) return;
     this.closed.emit();
   }
 
@@ -378,7 +391,7 @@ export class TicketDetails {
     if (!t || !this.form.title.trim() || this.saving()) return;
     // A guide, not a rule: the API would accept it. Declining keeps the window open, unsaved.
     const over = newlyOverLimit([...this.users(), ...this.outsiders()], this.form.assignedToUserIds, t.assignees.map((a) => a.userId));
-    if (!confirmOverLimit(over)) return;
+    if (!(await confirmOverLimit(this.confirm, over))) return;
     const joined = this.joinedNames();
     this.saving.set(true);
     try {
@@ -414,7 +427,12 @@ export class TicketDetails {
 
   async remove() {
     const t = this.ticket();
-    if (!t || !confirm(`Delete ${t.ticketKey} “${t.title}” with its comments and history? This cannot be undone.`)) return;
+    if (!t || !(await this.confirm.ask({
+      title: `Delete ${t.ticketKey}?`,
+      message: `“${t.title}” will be deleted with its comments and history. This cannot be undone.`,
+      confirmLabel: 'Delete ticket',
+      tone: 'danger',
+    }))) return;
     await this.api.deleteTicket(t.ticketId);
     this.toast.success(`${t.ticketKey} deleted.`);
     this.changed.emit();

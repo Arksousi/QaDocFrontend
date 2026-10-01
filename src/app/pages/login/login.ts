@@ -2,62 +2,76 @@ import { Component, OnInit, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { Icon } from '../../shared/icon';
 import { PeekPassword } from '../../shared/peek-password';
 
 /** Sign in, or, on a brand-new installation, create the first Admin account. */
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, PeekPassword],
+  imports: [FormsModule, Icon, PeekPassword],
   template: `
+    <!-- The brand half on the left, the form on a blue panel on the right. Field names are kept as
+         real (visually hidden) labels, so screen readers and getByLabel still find each box. -->
     <main class="auth-page">
-      <div class="auth-card card">
-        <div class="brand auth-brand"><img class="brand-logo" src="logo.svg" alt="QaDoc" /></div>
+      <section class="auth-art">
+        <img class="auth-logo" src="logo.svg" alt="QaDoc — QA Documentation" />
+      </section>
 
-        @if (needsSetup() === null) {
-          <p class="muted">Loading…</p>
-        } @else if (needsSetup()) {
-          <h1>Create admin account</h1>
-          <p class="muted">Welcome! This is a new installation. Create the first account; it will be the Admin who adds everyone else.</p>
-          <form class="form" (ngSubmit)="createAdmin()">
-            <label>Display name *
-              <input name="displayName" [(ngModel)]="displayName" required maxlength="100" autocomplete="name" autofocus placeholder="e.g. Dana Lee" />
-            </label>
-            <label>Username *
-              <input name="username" [(ngModel)]="username" required minlength="3" maxlength="50" autocomplete="username" pattern="[A-Za-z0-9._\\-]+" placeholder="e.g. dana.lee" />
-            </label>
-            <label>Password * <small class="muted">at least 8 characters</small>
-              <input name="password" appPeekPassword [(ngModel)]="password" required minlength="8" autocomplete="new-password" />
-            </label>
-            <label>Confirm password *
-              <input name="confirm" appPeekPassword [(ngModel)]="confirm" required autocomplete="new-password" />
-            </label>
-            @if (confirm && password !== confirm) { <p class="field-error">Passwords do not match.</p> }
-            <button class="btn btn-primary btn-block" type="submit"
-              [disabled]="busy() || !displayName.trim() || username.trim().length < 3 || password.length < 8 || password !== confirm">
-              Create admin & sign in
+      <section class="auth-panel">
+        <div class="auth-card">
+          @if (needsSetup() === null) {
+            <p class="muted">Loading…</p>
+          } @else if (needsSetup()) {
+            <h1>Create admin account</h1>
+            <p class="auth-sub">Welcome! This is a new installation. Create the first account; it will be the Admin who adds everyone else.</p>
+            <form class="form" (ngSubmit)="createAdmin()">
+              <label class="auth-field"><span class="sr-only">Display name *</span>
+                <app-icon name="user" />
+                <input name="displayName" [(ngModel)]="displayName" required maxlength="100" autocomplete="name" autofocus placeholder="Display name, e.g. Dana Lee" />
+              </label>
+              <label class="auth-field"><span class="sr-only">Username *</span>
+                <app-icon name="user" />
+                <input name="username" [(ngModel)]="username" required minlength="3" maxlength="50" autocomplete="username" pattern="[A-Za-z0-9._\\-]+" placeholder="Username, e.g. dana.lee" />
+              </label>
+              <label class="auth-field"><span class="sr-only">Password * (at least 8 characters)</span>
+                <app-icon name="lock" />
+                <input name="password" appPeekPassword [(ngModel)]="password" required minlength="8" autocomplete="new-password" placeholder="Password (at least 8 characters)" />
+              </label>
+              <label class="auth-field"><span class="sr-only">Confirm password *</span>
+                <app-icon name="lock" />
+                <input name="confirm" appPeekPassword [(ngModel)]="confirm" required autocomplete="new-password" placeholder="Confirm password" />
+              </label>
+              @if (confirm && password !== confirm) { <p class="field-error">Passwords do not match.</p> }
+              <button class="btn btn-primary btn-block" type="submit"
+                [disabled]="busy() || !displayName.trim() || username.trim().length < 3 || password.length < 8 || password !== confirm">
+                Create admin & sign in
+              </button>
+            </form>
+          } @else {
+            <h1>Sign in</h1>
+            <p class="auth-sub">Welcome back to QaDoc.</p>
+            <form class="form" (ngSubmit)="signIn()">
+              <label class="auth-field"><span class="sr-only">Username</span>
+                <app-icon name="user" />
+                <input name="username" [(ngModel)]="username" required autocomplete="username" autofocus placeholder="Username" />
+              </label>
+              <label class="auth-field"><span class="sr-only">Password</span>
+                <app-icon name="lock" />
+                <input name="password" appPeekPassword [(ngModel)]="password" required autocomplete="current-password" placeholder="Password" />
+              </label>
+              <button class="btn btn-primary btn-block" type="submit" [disabled]="busy() || !username.trim() || !password">Sign in</button>
+            </form>
+            <div class="auth-or"><span>or</span></div>
+            <button class="btn btn-ghost btn-block" type="button" [disabled]="busy()" (click)="continueAsGuest()">
+              Continue as a guest
             </button>
-          </form>
-        } @else {
-          <h1>Sign in</h1>
-          <form class="form" (ngSubmit)="signIn()">
-            <label>Username
-              <input name="username" [(ngModel)]="username" required autocomplete="username" autofocus />
-            </label>
-            <label>Password
-              <input name="password" appPeekPassword [(ngModel)]="password" required autocomplete="current-password" />
-            </label>
-            <button class="btn btn-primary btn-block" type="submit" [disabled]="busy() || !username.trim() || !password">Sign in</button>
-          </form>
-          <div class="auth-or"><span>or</span></div>
-          <button class="btn btn-ghost btn-block" type="button" [disabled]="busy()" (click)="continueAsGuest()">
-            Continue as a guest
-          </button>
-          <p class="muted small auth-help">
-            A guest tours sample projects and can't change anything.<br />
-            No account? Ask your QaDoc Admin to create one.
-          </p>
-        }
-      </div>
+            <p class="muted small auth-help">
+              A guest tours sample projects and can't change anything.<br />
+              No account? Ask your QaDoc Admin to create one.
+            </p>
+          }
+        </div>
+      </section>
     </main>
   `,
 })

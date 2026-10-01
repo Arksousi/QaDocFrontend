@@ -5,7 +5,7 @@ import { MemberScore, ProjectScoreboard, avatarTone, initials } from '../../core
 import { Icon } from '../../shared/icon';
 import { ProjectCreate } from '../../shared/project-create';
 import { Topbar } from '../../shared/topbar';
-import { UserCardTrigger } from '../../shared/user-card';
+import { Avatar } from '../../shared/avatar';
 
 interface MemberRow extends MemberScore {
   /** Share of their assigned tickets that are Closed, 0–100. Nobody-assigned reads as 0, not NaN. */
@@ -22,7 +22,7 @@ interface ScoreCard {
 /** Admins and Leaders: every project they are on, each with its open-ticket ring and per-member progress. */
 @Component({
   selector: 'app-leader',
-  imports: [UserCardTrigger, RouterLink, Topbar, ProjectCreate, Icon],
+  imports: [Avatar, RouterLink, Topbar, ProjectCreate, Icon],
   template: `
     <app-topbar crumb="Leader Dashboard">
       <button class="btn btn-primary" (click)="adding.set(true)"><app-icon name="plus" /> Add project</button>
@@ -80,7 +80,7 @@ interface ScoreCard {
                 @for (m of c.members; track m.userId) {
                   <div class="score-row" [class.row-inactive]="!m.isActive">
                     <span class="person">
-                      <span class="avatar avatar-sm avatar-t{{ toneOf(m.displayName) }}" [appUserCard]="m.userId" aria-hidden="true">{{ initialsOf(m.displayName) }}</span>
+                      <app-avatar size="sm" [userId]="m.userId" [name]="m.displayName" />
                       <span class="score-name">{{ m.displayName }}@if (!m.isActive) { <span class="muted small"> (deactivated)</span> }</span>
                     </span>
                     <span class="score-bar" role="progressbar" aria-valuemin="0" [attr.aria-valuemax]="m.assigned"

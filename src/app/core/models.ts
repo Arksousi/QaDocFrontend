@@ -11,6 +11,8 @@ export const TICKET_TYPES = ['Bug', 'Enhancement', 'Issue'] as const;
 /** What a membership can be set to, least to most capable. Managing is not one of them; see ProjectAccess. */
 export const PROJECT_ROLES = ['Viewer', 'Contributor'] as const;
 export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] as const;
+/** 1 is the most urgent. Named for the ticket list's priority marker and its tooltip. */
+export const PRIORITY_LABELS: Record<number, string> = { 1: 'Highest', 2: 'High', 3: 'Medium', 4: 'Low' };
 
 export type TicketState = (typeof STATES)[number];
 export type Impact = (typeof IMPACTS)[number];
@@ -44,6 +46,13 @@ export interface User {
   /** Unfinished tickets they should hold at once, across all projects; null for no limit. */
   ticketLimit: number | null;
   createdAt: string;
+  // The profile they fill in themselves; all optional.
+  email?: string | null;
+  jobTitle?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  /** 0 while they have no picture; goes up each time it changes. */
+  avatarVersion?: number;
 }
 
 /** Active user shown in "Assigned To" pickers, with their load so the picker can warn. */
@@ -57,6 +66,21 @@ export interface UserOption {
 }
 
 /** What an Admin or Leader sees on hovering someone's avatar. Counts cover every real project. */
+/** Your own profile fields, as PUT /profile takes them. Blank means not given. */
+export interface ProfileUpdate {
+  displayName: string;
+  email: string | null;
+  jobTitle: string | null;
+  phone: string | null;
+  bio: string | null;
+}
+
+/** Someone who has a profile picture, and which version of it is current. */
+export interface AvatarVersion {
+  userId: number;
+  version: number;
+}
+
 export interface UserCard {
   userId: number;
   displayName: string;
@@ -70,6 +94,9 @@ export interface UserCard {
   totalAssigned: number;
   /** Only projects the viewer can open too. */
   projects: { projectId: number; projectCode: string; projectName: string; role: ProjectRole }[];
+  jobTitle?: string | null;
+  email?: string | null;
+  avatarVersion?: number;
 }
 
 /** One row of the Users Dashboard: an active person's load against their limit. */
@@ -111,8 +138,11 @@ export interface AppNotification {
   actorName: string | null;
   createdAt: string;
   isRead: boolean;
-  /** Assigned: they were put on the ticket. Mentioned: a comment on it @mentions them. */
-  kind: 'Assigned' | 'Mentioned';
+  /**
+   * Assigned: they were put on the ticket. Mentioned: a comment on it @mentions them.
+   * Retest: a ticket they are on was moved to Retest.
+   */
+  kind: 'Assigned' | 'Mentioned' | 'Retest';
 }
 
 export interface AuthStatus {
@@ -256,10 +286,9 @@ export interface TicketAssignee {
   userId: number;
   displayName: string;
   assignedByName: string | null;
+  /** Who assigned them, for their avatar; null when unknown. */
+  assignedByUserId?: number | null;
 }
-
-/** The API refuses more; the picker stops offering people at this many. */
-export const MAX_ASSIGNEES = 10;
 
 /** Editable ticket fields, sent on create (with projectId) and update. */
 export interface SaveTicket {
@@ -273,6 +302,17 @@ export interface SaveTicket {
   priority: number;
   impact: Impact;
   tags: string[];
+}
+
+/**
+ * A saved ticket as the body its update takes: every field as it is now. The list's quick state
+ * change sends this with only the state changed, so it never touches anything else.
+ */
+export function toSaveTicket(t: Ticket): SaveTicket {
+  return {
+    folderId: t.folderId, title: t.title, description: t.description ?? '', ticketType: t.ticketType,
+    assignedToUserIds: t.assignees.map((a) => a.userId), state: t.state, priority: t.priority, impact: t.impact, tags: [...t.tags],
+  };
 }
 
 export interface Suggestions {

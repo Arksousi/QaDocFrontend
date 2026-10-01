@@ -86,7 +86,7 @@ test.describe('First run', () => {
     await openLogin(page);
 
     await expect(page.getByRole('heading', { name: 'Create admin account' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign in' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
   });
 
   test('the create button waits for a matching confirmation', async ({ page }) => {

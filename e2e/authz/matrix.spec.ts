@@ -112,6 +112,35 @@ const CASES: Case[] = [
     expected: { manager: 400, admin: 400 },
   },
 
+  // ---------- profiles and pictures ----------
+  {
+    name: 'GET /users/avatars is anyone signed in, not a guest',
+    method: 'get',
+    path: () => '/users/avatars',
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: 200, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'GET /users/{id}/avatar is anyone signed in; no picture is a 404',
+    method: 'get',
+    // The viewer never uploads one in this suite, so every signed-in actor gets the same 404.
+    path: (w) => `/users/${w.userIds['viewer']}/avatar`,
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: HIDDEN, contributor: HIDDEN, manager: HIDDEN, admin: HIDDEN },
+  },
+  {
+    name: 'PUT /profile refuses a guest before it validates anything',
+    method: 'put',
+    path: () => '/profile',
+    // An invalid email: 400 shows a real account got as far as validation, without changing anything.
+    body: () => ({ displayName: 'Irrelevant', email: 'not-an-email' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: 400, viewer: 400, contributor: 400, manager: 400, admin: 400 },
+  },
+  {
+    name: 'DELETE /profile/avatar refuses a guest',
+    method: 'delete',
+    path: () => '/profile/avatar',
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN },
+  },
+
   // ---------- your own notifications ----------
   {
     name: 'GET /notifications is anyone signed in, always their own',
@@ -372,50 +401,79 @@ test.describe('Assignment notifications', () => {
   });
 });
 
-test.describe('Several people on one ticket', () => {
+test.describe('Retest notifications', () => {
+  interface Note { ticketId: number; kind: string }
+  const body = (state: string, title = 'Retest check') => ({
+    folderId: world.folderId, title, description: '', ticketType: 'Bug',
+    assignedToUserIds: [world.userIds['contributor']],
+    state, priority: 2, impact: 'Medium', tags: [],
+  });
+  const retestNotes = async (actor: Actor, ticketId: number) =>
+    ((await (await clients.get(actor)!.get('/notifications?top=50')).json()) as Note[])
+      .filter((n) => n.ticketId === ticketId && n.kind === 'Retest').length;
+
+  test('moving to Retest tells the assignee (never the mover), once per move', async () => {
+    const { id } = await (await clients.get('admin')!.post('/tickets', { data: body('Resolved') })).json();
+    expect(await retestNotes('contributor', id)).toBe(0);
+
+    const manager = clients.get('manager')!;
+    expect((await manager.put(`/tickets/${id}`, { data: body('Retest') })).status()).toBe(204);
+    expect(await retestNotes('contributor', id)).toBe(1);
+    expect(await retestNotes('manager', id), 'whoever moved it is not told').toBe(0);
+
+    // Saving other fields while it stays in Retest is not another move.
+    expect((await manager.put(`/tickets/${id}`, { data: body('Retest', 'Retest check, renamed') })).status()).toBe(204);
+    expect(await retestNotes('contributor', id)).toBe(1);
+
+    // Back out and in again is a second move.
+    expect((await manager.put(`/tickets/${id}`, { data: body('In Progress') })).status()).toBe(204);
+    expect((await manager.put(`/tickets/${id}`, { data: body('Retest') })).status()).toBe(204);
+    expect(await retestNotes('contributor', id)).toBe(2);
+  });
+});
+
+test.describe('One person per ticket', () => {
   interface Assignee { userId: number; assignedByName: string | null }
   const body = (assignedToUserIds: number[]) => ({
-    folderId: world.folderId, title: 'Shared ticket', description: '', ticketType: 'Bug',
+    folderId: world.folderId, title: 'Owned ticket', description: '', ticketType: 'Bug',
     assignedToUserIds, state: 'Open', priority: 2, impact: 'Medium', tags: [],
   });
 
-  test('everyone assigned is kept and told; removing one leaves the rest', async () => {
+  test('two people are refused, on create and on update', async () => {
     const admin = clients.get('admin')!;
     const pair = [world.userIds['contributor'], world.userIds['manager']];
-    const { id } = await (await admin.post('/tickets', { data: body(pair) })).json();
+    expect((await admin.post('/tickets', { data: body(pair) })).status()).toBe(400);
 
+    const { id } = await (await admin.post('/tickets', { data: body([world.userIds['contributor']]) })).json();
+    expect((await admin.put(`/tickets/${id}`, { data: body(pair) })).status()).toBe(400);
+  });
+
+  test('reassigning replaces the person, and the new one is told', async () => {
+    const admin = clients.get('admin')!;
+    const { id } = await (await admin.post('/tickets', { data: body([world.userIds['contributor']]) })).json();
     const assignees = async (): Promise<Assignee[]> => (await (await admin.get(`/tickets/${id}`)).json()).assignees;
-    expect((await assignees()).map((a) => a.userId).sort()).toEqual([...pair].sort());
-
-    for (const actor of ['contributor', 'manager'] as const) {
-      const notes: { ticketId: number }[] = await (await clients.get(actor)!.get('/notifications?top=50')).json();
-      expect(notes.some((n) => n.ticketId === id), `${actor} should have been notified`).toBe(true);
-    }
+    expect((await assignees()).map((a) => a.userId)).toEqual([world.userIds['contributor']]);
 
     expect((await admin.put(`/tickets/${id}`, { data: body([world.userIds['manager']]) })).status()).toBe(204);
     expect((await assignees()).map((a) => a.userId)).toEqual([world.userIds['manager']]);
+    const notes: { ticketId: number }[] = await (await clients.get('manager')!.get('/notifications?top=50')).json();
+    expect(notes.some((n) => n.ticketId === id), 'the new assignee should have been notified').toBe(true);
 
-    // "Assigned to me" still finds a ticket the contributor shares; here they have left it.
+    // "Assigned to me" no longer finds it for the person it was taken from.
     const mine: { ticketId: number }[] = await (await clients.get('contributor')!
       .get(`/projects/${world.projectId}/tickets?assignedTo=${world.userIds['contributor']}`)).json();
     expect(mine.some((t) => t.ticketId === id)).toBe(false);
   });
 
-  test('a save that leaves the list out keeps everyone (an app from before several assignees)', async () => {
+  test('a save that leaves the list out keeps the assignee (an older app)', async () => {
     const admin = clients.get('admin')!;
-    const pair = [world.userIds['contributor'], world.userIds['manager']];
-    const { id } = await (await admin.post('/tickets', { data: body(pair) })).json();
+    const { id } = await (await admin.post('/tickets', { data: body([world.userIds['contributor']]) })).json();
 
     const { assignedToUserIds: _omitted, ...legacy } = body([]);
     expect((await admin.put(`/tickets/${id}`, { data: { ...legacy, title: 'Edited by an old app' } })).status()).toBe(204);
 
     const after: Assignee[] = (await (await admin.get(`/tickets/${id}`)).json()).assignees;
-    expect(after.map((a) => a.userId).sort()).toEqual([...pair].sort());
-  });
-
-  test('more than the limit is refused', async () => {
-    const tooMany = Array.from({ length: 11 }, (_, i) => i + 1);
-    expect((await clients.get('admin')!.post('/tickets', { data: body(tooMany) })).status()).toBe(400);
+    expect(after.map((a) => a.userId)).toEqual([world.userIds['contributor']]);
   });
 });
 
@@ -483,6 +541,66 @@ test.describe('Avatar hover card', () => {
 
   test('an unknown user is a 404', async () => {
     expect((await clients.get('admin')!.get('/users/999999999/card')).status()).toBe(HIDDEN);
+  });
+});
+
+test.describe('Profiles and pictures', () => {
+  // A real 1×1 PNG: the API judges a picture by its bytes, not by the declared type.
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+  interface Me { userId: number; displayName: string; email: string | null; jobTitle: string | null; phone: string | null; bio: string | null; avatarVersion: number }
+  const me = async (actor: Actor): Promise<Me> => (await clients.get(actor)!.get('/auth/me')).json();
+
+  test('you edit your own profile, blanks are stored as empty, and nobody else changes', async () => {
+    const contributor = clients.get('contributor')!;
+    const before = await me('contributor');
+    const adminBefore = await me('admin');
+
+    const saved = await contributor.put('/profile', {
+      data: { displayName: before.displayName, email: 'contributor@example.com', jobTitle: 'QA Engineer', phone: '+961 70 123 456', bio: '  ' },
+    });
+    expect(saved.status()).toBe(200);
+    expect(await saved.json()).toMatchObject({ userId: before.userId, email: 'contributor@example.com', jobTitle: 'QA Engineer', bio: null });
+    expect(await me('contributor')).toMatchObject({ jobTitle: 'QA Engineer', phone: '+961 70 123 456' });
+    // Only the caller's row moved.
+    expect(await me('admin')).toMatchObject({ email: adminBefore.email, jobTitle: adminBefore.jobTitle });
+
+    // Put it back for the rest of the suite.
+    await contributor.put('/profile', { data: { displayName: before.displayName, email: null, jobTitle: null, phone: null, bio: null } });
+  });
+
+  test('bad values are refused', async () => {
+    const c = clients.get('contributor')!;
+    const name = (await me('contributor')).displayName;
+    expect((await c.put('/profile', { data: { displayName: name, phone: 'call me maybe' } })).status()).toBe(400);
+    expect((await c.put('/profile', { data: { displayName: '   ' } })).status()).toBe(400);
+    expect((await c.put('/profile', { data: { displayName: name, bio: 'x'.repeat(501) } })).status()).toBe(400);
+  });
+
+  test('a picture round trip: upload, list, fetch, refuse a fake, remove', async () => {
+    const c = clients.get('contributor')!;
+    const id = world.userIds['contributor'];
+
+    const up = await c.post('/profile/avatar', { multipart: { file: { name: 'me.png', mimeType: 'image/png', buffer: PNG } } });
+    expect(up.status()).toBe(200);
+    const { avatarVersion } = await up.json();
+    expect(avatarVersion).toBeGreaterThan(0);
+
+    const listed: { userId: number; version: number }[] = await (await clients.get('viewer')!.get('/users/avatars')).json();
+    expect(listed).toContainEqual({ userId: id, version: avatarVersion });
+    const pic = await clients.get('viewer')!.get(`/users/${id}/avatar?v=${avatarVersion}`);
+    expect(pic.status()).toBe(200);
+    expect(pic.headers()['content-type']).toBe('image/png');
+    expect(Buffer.compare(await pic.body(), PNG)).toBe(0);
+
+    // Calling a text file a PNG does not make it one.
+    const fake = await c.post('/profile/avatar', { multipart: { file: { name: 'me.png', mimeType: 'image/png', buffer: Buffer.from('not a picture') } } });
+    expect(fake.status()).toBe(400);
+
+    const gone = await c.delete('/profile/avatar');
+    expect((await gone.json()).avatarVersion).toBeGreaterThan(avatarVersion);
+    expect((await clients.get('viewer')!.get(`/users/${id}/avatar`)).status()).toBe(HIDDEN);
+    const after: { userId: number }[] = await (await c.get('/users/avatars')).json();
+    expect(after.some((a) => a.userId === id)).toBe(false);
   });
 });
 

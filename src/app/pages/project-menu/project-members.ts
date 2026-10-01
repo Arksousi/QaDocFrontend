@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, input, output, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../core/api.service';
 import { PROJECT_ROLES, Project, ProjectMember, ProjectRole, UserOption } from '../../core/models';
+import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { Modal } from '../../shared/modal';
 
@@ -79,6 +80,7 @@ import { Modal } from '../../shared/modal';
 export class ProjectMembers implements OnInit {
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly project = input.required<Project>();
   readonly closed = output<void>();
@@ -128,7 +130,12 @@ export class ProjectMembers implements OnInit {
 
   async remove(member: ProjectMember) {
     if (this.saving()) return;
-    if (!confirm(`Remove ${member.displayName} from “${this.project().projectName}”?`)) return;
+    if (!(await this.confirm.ask({
+      title: `Remove ${member.displayName}?`,
+      message: `They will lose access to “${this.project().projectName}”. Tickets assigned to them stay assigned.`,
+      confirmLabel: 'Remove member',
+      tone: 'danger',
+    }))) return;
     this.saving.set(true);
     try {
       await this.api.removeProjectMember(this.project().projectId, member.userId);

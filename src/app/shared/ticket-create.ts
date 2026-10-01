@@ -2,6 +2,7 @@ import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, UserOption } from '../core/models';
+import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
 import { Modal } from './modal';
@@ -18,8 +19,6 @@ import { TagInput } from './tag-input';
         <label>Title *
           <input name="title" [(ngModel)]="draft.title" required maxlength="200" autofocus placeholder="Short summary of the issue or task" />
         </label>
-        <!-- Outside the grid: several people need the full width, and a <label> around the
-             chips' remove buttons would hand every click to the first one. -->
         <div class="field">
           <span class="field-label">Assigned To</span>
           <app-assignee-picker label="Assigned To" [members]="users()" [outsiders]="outsiders()"
@@ -71,6 +70,7 @@ import { TagInput } from './tag-input';
 export class TicketCreate {
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly projectId = input.required<number>();
   /** Which folder the ticket is filed into; it decides the key, e.g. RMS-V1-0001. */
@@ -101,7 +101,7 @@ export class TicketCreate {
   async save() {
     if (!this.draft.title.trim() || this.saving()) return;
     // A guide, not a rule: the API would accept it. Declining keeps the draft open.
-    if (!confirmOverLimit(newlyOverLimit([...this.users(), ...this.outsiders()], this.draft.assignedToUserIds, []))) return;
+    if (!(await confirmOverLimit(this.confirm, newlyOverLimit([...this.users(), ...this.outsiders()], this.draft.assignedToUserIds, [])))) return;
     const joined = this.joinedNames();
     this.saving.set(true);
     try {

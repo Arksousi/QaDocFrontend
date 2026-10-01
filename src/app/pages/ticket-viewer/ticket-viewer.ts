@@ -3,8 +3,9 @@ import { Component, HostListener, WritableSignal, computed, effect, inject, inpu
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
-import { Folder, Project, STATES, Suggestions, TICKET_TYPES, Ticket, UserOption, avatarTone, canEditTickets, canManageMembers, initials, slug } from '../../core/models';
+import { Folder, PRIORITY_LABELS, Project, STATES, Suggestions, TICKET_TYPES, Ticket, TicketState, UserOption, avatarTone, canEditTickets, canManageMembers, initials, slug, toSaveTicket } from '../../core/models';
 import { AuthService } from '../../core/auth.service';
+import { ConfirmService } from '../../core/confirm.service';
 import { ToastService } from '../../core/toast.service';
 import { TicketCreate } from '../../shared/ticket-create';
 import { TicketDetails } from '../../shared/ticket-details';
@@ -12,9 +13,9 @@ import { Modal } from '../../shared/modal';
 import { TypeIcon } from '../../shared/type-icon';
 import { Topbar } from '../../shared/topbar';
 import { Icon } from '../../shared/icon';
-import { UserCardTrigger } from '../../shared/user-card';
+import { Avatar } from '../../shared/avatar';
 
-type SortKey = 'ticketType' | 'ticketId' | 'title' | 'assignees' | 'state' | 'tags' | 'activityDate';
+type SortKey = 'ticketType' | 'ticketId' | 'title' | 'priority' | 'assignees' | 'state' | 'tags' | 'activityDate';
 type FilterMenu = 'state' | 'type' | 'tag';
 
 /** "All tags" when nothing is ticked, the value itself when one is, a count beyond that. */
@@ -23,7 +24,7 @@ const summarise = (picked: string[], plural: string) =>
 
 @Component({
   selector: 'app-ticket-viewer',
-  imports: [UserCardTrigger, FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
+  imports: [Avatar, FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
   template: `
     <app-topbar [crumb]="project()?.projectName ?? null">
       @if (canEdit()) {
@@ -41,6 +42,13 @@ const summarise = (picked: string[], plural: string) =>
               <strong>{{ p.openTicketCount }}</strong> open
               <span class="project-note-sep" aria-hidden="true">·</span>
               {{ p.ticketCount }} total
+              @if (p.ticketCount) {
+                <span class="project-note-sep" aria-hidden="true">·</span>
+                <span class="project-progress" role="img" [attr.aria-label]="donePct() + '% of tickets closed'">
+                  <span class="score-bar"><span [style.width.%]="donePct()"></span></span>
+                  {{ donePct() }}% done
+                </span>
+              }
             </p>
           </div>
         </header>
@@ -51,16 +59,20 @@ const summarise = (picked: string[], plural: string) =>
         <h2 class="section-title">Folders</h2>
         <input class="folder-search" type="search" placeholder="Search folders…" aria-label="Search folders"
           [ngModel]="folderSearch()" (ngModelChange)="folderSearch.set($event)" />
+        <!-- Each count is "open / total", so a folder with work left stands out from a finished one. -->
         <button class="folder-item" [class.active]="folderId() === null" (click)="selectFolder(null)">
           <span class="grow">All tickets</span>
-          <span class="muted small">{{ project()?.ticketCount ?? 0 }}</span>
+          <span class="folder-count" [title]="(project()?.openTicketCount ?? 0) + ' open of ' + (project()?.ticketCount ?? 0)">
+            <b>{{ project()?.openTicketCount ?? 0 }}</b>/{{ project()?.ticketCount ?? 0 }}
+          </span>
         </button>
         @for (f of visibleFolders(); track f.folderId) {
           <div class="folder-row">
-            <button class="folder-item" [class.active]="folderId() === f.folderId" (click)="selectFolder(f.folderId)">
+            <button class="folder-item" [class.active]="folderId() === f.folderId" [class.folder-done]="f.openTicketCount === 0"
+              (click)="selectFolder(f.folderId)">
               <span class="id-chip">{{ f.folderCode }}</span>
               <span class="grow folder-name">{{ f.folderName }}</span>
-              <span class="muted small">{{ f.ticketCount }}</span>
+              <span class="folder-count" [title]="f.openTicketCount + ' open of ' + f.ticketCount"><b>{{ f.openTicketCount }}</b>/{{ f.ticketCount }}</span>
             </button>
             @if (canManageFolders()) {
               <button class="icon-btn folder-del" (click)="removeFolder(f)" [disabled]="deletingFolder() || !!whyNotDeletable(f)"
@@ -76,10 +88,22 @@ const summarise = (picked: string[], plural: string) =>
       </nav>
 
       <section class="card grow">
+        <!-- How the tickets in view split by state; a chip is also a one-click filter to that state.
+             The counts ignore the state filter itself, so every chip keeps its number while one is on. -->
+        <div class="state-strip" role="group" aria-label="Tickets by state">
+          @for (s of states; track s) {
+            <button type="button" class="state-chip" [class.active]="onlyState() === s" [attr.aria-pressed]="onlyState() === s"
+              (click)="focusState(s)">
+              <span class="filter-swatch state-{{ slugOf(s) }}" aria-hidden="true"></span>
+              <span>{{ s }}</span>
+              <span class="state-chip-count">{{ stateCounts()[s] }}</span>
+            </button>
+          }
+        </div>
         <div class="toolbar">
           <span class="search-wrap">
             <app-icon name="search" />
-            <input type="search" placeholder="Search title, assignee or key (RMS-V1-0001)…" aria-label="Search tickets"
+            <input type="search" [placeholder]="searchHint()" aria-label="Search tickets" title="Search by title, assignee or ticket key"
               [ngModel]="search()" (ngModelChange)="search.set($event)" />
           </span>
           <!-- All three filters tick several values at once, so "everything still open", "bugs and
@@ -160,9 +184,9 @@ const summarise = (picked: string[], plural: string) =>
             <input type="checkbox" [ngModel]="mine()" (ngModelChange)="mine.set($event)" /> Assigned to me
           </label>
           @if (hasFilters()) {
-            <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear filters</button>
+            <button class="btn btn-ghost btn-sm" (click)="clearFilters()">{{ onlyMine() ? 'Show all tickets' : 'Clear filters' }}</button>
           }
-          <span class="muted small push-left">{{ tickets().length }} ticket(s)</span>
+          <span class="muted small push-left">{{ tickets().length }} {{ tickets().length === 1 ? 'ticket' : 'tickets' }}</span>
         </div>
 
         @if (loading()) {
@@ -176,6 +200,7 @@ const summarise = (picked: string[], plural: string) =>
                     <td class="col-type"><div class="skeleton skeleton-avatar"></div></td>
                     <td class="col-id"><div class="skeleton skeleton-chip"></div></td>
                     <td class="title-cell"><div class="skeleton skeleton-line w-60"></div></td>
+                    <td class="col-priority"><div class="skeleton skeleton-avatar"></div></td>
                     <td class="col-assignee"><div class="skeleton skeleton-avatar"></div></td>
                     <td><div class="skeleton skeleton-chip"></div></td>
                   </tr>
@@ -186,7 +211,11 @@ const summarise = (picked: string[], plural: string) =>
           <p class="sr-only" role="status">Loading tickets…</p>
         } @else if (tickets().length === 0) {
           <div class="empty">
-            @if (hasFilters()) {
+            @if (onlyMine()) {
+              <h2>Nothing assigned to you here</h2>
+              <p>Tickets assigned to you in this project show up here.</p>
+              <button class="btn btn-ghost" (click)="clearFilters()">Show all tickets</button>
+            } @else if (hasFilters()) {
               <h2>No tickets match these filters</h2>
               <button class="btn btn-ghost" (click)="clearFilters()">Clear filters</button>
             } @else {
@@ -230,24 +259,38 @@ const summarise = (picked: string[], plural: string) =>
                           <app-icon name="comment" class="icon-inline" />{{ t.commentCount }}
                         </span> }
                     </td>
+                    <td class="col-priority">
+                      <span class="prio prio-{{ t.priority }}" [title]="'Priority ' + t.priority + ' · ' + priorityLabel(t.priority)">
+                        <app-icon [name]="$any('priority-' + t.priority)" />{{ t.priority }}
+                      </span>
+                    </td>
                     <td class="col-assignee">
-                      <!-- The first person by name, the rest as a count: the column stays one narrow
-                           track however many share the ticket, and the tooltip lists everyone. -->
                       @if (t.assignees[0]; as first) {
                         <span class="person" [title]="assigneeNames(t)">
-                          <span class="avatar avatar-sm avatar-t{{ toneOf(first.displayName) }}" [appUserCard]="first.userId" aria-hidden="true">{{ initialsOf(first.displayName) }}</span>
+                          <app-avatar size="sm" [userId]="first.userId" [name]="first.displayName" />
                           <span class="person-name">{{ first.displayName }}</span>
-                          @if (t.assignees.length > 1) { <span class="count">+{{ t.assignees.length - 1 }}</span> }
                         </span>
                       } @else { <span class="muted">Unassigned</span> }
                     </td>
-                    <td><span class="state state-{{ slugOf(t.state) }}">{{ t.state }}</span></td>
+                    <td>
+                      @if (canEdit()) {
+                        <!-- Changing state is the most common edit, so it can be done from the list. -->
+                        <button type="button" class="state state-{{ slugOf(t.state) }} state-button" aria-haspopup="menu"
+                          [attr.aria-expanded]="stateMenu()?.ticket?.ticketId === t.ticketId"
+                          [attr.aria-label]="t.ticketKey + ' state: ' + t.state + '. Change state'"
+                          [disabled]="movingId() === t.ticketId" (click)="openStateMenu($event, t)">
+                          {{ t.state }}<app-icon name="caret" />
+                        </button>
+                      } @else {
+                        <span class="state state-{{ slugOf(t.state) }}">{{ t.state }}</span>
+                      }
+                    </td>
                     <td>
                       <span class="tags">
                         @for (tag of t.tags; track tag) { <span class="tag">{{ tag }}</span> }
                       </span>
                     </td>
-                    <td class="nowrap muted">{{ t.activityDate | date: 'd MMM, h:mm a' }}</td>
+                    <td class="nowrap muted col-date">{{ t.activityDate | date: 'd MMM, h:mm a' }}</td>
                   </tr>
                 }
               </tbody>
@@ -257,6 +300,21 @@ const summarise = (picked: string[], plural: string) =>
       </section>
       </div>
     </main>
+
+    @if (stateMenu(); as m) {
+      <!-- Fixed to the viewport from the pill's position, so the table's scroll box cannot clip it. -->
+      <div class="menu state-menu" role="menu" [attr.aria-label]="'Move ' + m.ticket.ticketKey + ' to'"
+        [style.left.px]="m.left" [style.top.px]="m.top">
+        @for (s of states; track s; let first = $first) {
+          <button type="button" role="menuitemradio" [attr.aria-checked]="s === m.ticket.state" [class.current]="s === m.ticket.state"
+            [attr.data-first]="first ? '' : null" (click)="setState(m.ticket, s)">
+            <span class="filter-swatch state-{{ slugOf(s) }}" aria-hidden="true"></span>
+            <span class="grow">{{ s }}</span>
+            @if (s === m.ticket.state) { <app-icon name="check" /> }
+          </button>
+        }
+      </div>
+    }
 
     @if (addingFolder()) {
       <app-modal heading="Add folder" (closed)="addingFolder.set(false)">
@@ -292,6 +350,7 @@ export class TicketViewerPage {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly projectId = input.required({ transform: numberAttribute });
   /** ?ticket=<id> opens the Ticket Details window. */
@@ -340,7 +399,11 @@ export class TicketViewerPage {
   readonly state = signal<string[]>([]);
   readonly type = signal<string[]>([]);
   readonly tag = signal<string[]>([]);
-  readonly mine = signal(false);
+  /**
+   * Starts ticked: people open a project to work on their own tickets. A guest has no account,
+   * so nothing is theirs and they start on the whole list.
+   */
+  readonly mine = signal(!this.auth.isGuest());
   /** At most one panel is open at a time, so picking a filter never buries the one beside it. */
   readonly openMenu = signal<FilterMenu | null>(null);
   readonly stateLabel = computed(() => summarise(this.state(), 'states'));
@@ -350,6 +413,36 @@ export class TicketViewerPage {
     !!this.search() || this.state().length > 0 || this.type().length > 0 || this.tag().length > 0 || this.mine());
   readonly sortKey = signal<SortKey>('activityDate');
   readonly sortAsc = signal(false);
+  /** Only "Assigned to me" is on: the button and the empty screen then offer "Show all tickets". */
+  readonly onlyMine = computed(() =>
+    this.mine() && !this.search() && !this.state().length && !this.type().length && !this.tag().length);
+  /** The one state the chips have narrowed to, if exactly one is ticked. */
+  readonly onlyState = computed(() => (this.state().length === 1 ? this.state()[0] : null));
+  /**
+   * The tickets in view regardless of the state filter, for the chip counts. Loaded with the list:
+   * the list itself when no state is ticked, otherwise by a second request without the states.
+   */
+  readonly scope = signal<Ticket[]>([]);
+  readonly stateCounts = computed(() => {
+    const counts = Object.fromEntries(STATES.map((s) => [s, 0])) as Record<string, number>;
+    for (const t of this.scope()) counts[t.state]++;
+    return counts;
+  });
+  /** Share of the project's tickets that are closed, for the bar under the title. */
+  readonly donePct = computed(() => {
+    const p = this.project();
+    return p?.ticketCount ? Math.round(((p.ticketCount - p.openTicketCount) / p.ticketCount) * 100) : 0;
+  });
+  /** A key in this project's own shape, not a sample project's: "e.g. STMS-NOTI-0001". */
+  readonly searchHint = computed(() => {
+    const code = this.project()?.projectCode;
+    const folder = this.folders().find((f) => f.folderId === this.folderId()) ?? this.folders()[0];
+    return code && folder ? `Search… e.g. ${code}-${folder.folderCode}-0001` : 'Search…';
+  });
+  /** The list row whose state menu is open, and where to draw it. */
+  readonly stateMenu = signal<{ ticket: Ticket; left: number; top: number } | null>(null);
+  /** The ticket whose quick state change is being saved, so its pill cannot be clicked twice. */
+  readonly movingId = signal<number | null>(null);
 
   readonly states = STATES;
   readonly ticketTypes = TICKET_TYPES;
@@ -363,6 +456,7 @@ export class TicketViewerPage {
     { key: 'ticketType', label: 'Type', cls: 'col-type' },
     { key: 'ticketId', label: 'ID', cls: 'col-id' },
     { key: 'title', label: 'Title', cls: 'col-grow' },
+    { key: 'priority', label: 'Priority', cls: 'col-priority' },
     { key: 'assignees', label: 'Assigned To', cls: 'col-assignee' },
     { key: 'state', label: 'State', cls: 'col-fit' },
     { key: 'tags', label: 'Tag', cls: 'col-tags' },
@@ -378,11 +472,12 @@ export class TicketViewerPage {
       : key === 'tags' ? t.tags.join(', ').toLowerCase()
       : key === 'assignees' ? this.assigneeNames(t).toLowerCase()
       : key === 'activityDate' ? t.activityDate
+      : key === 'priority' ? t.priority
       : (t[key] ?? '').toLowerCase();
     return [...this.tickets()].sort((a, b) => (value(a) > value(b) ? dir : value(a) < value(b) ? -dir : b.ticketId - a.ticketId));
   });
 
-  /** Everyone on a ticket, for the tooltip and for sorting; empty when unassigned. */
+  /** Who has the ticket, for the tooltip and for sorting; empty when unassigned. */
   assigneeNames(t: Ticket) {
     return t.assignees.map((a) => a.displayName).join(', ');
   }
@@ -400,6 +495,14 @@ export class TicketViewerPage {
         [this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine()];
       clearTimeout(this.searchTimer);
       this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, states, types, tags, mine), search ? 250 : 0);
+    });
+    // The state menu is fixed to the viewport; if anything scrolls under it, it would float off
+    // its row, so it closes. Scrolling doesn't bubble, hence the capture listener while it is open.
+    effect((onCleanup) => {
+      if (!this.stateMenu()) return;
+      const close = () => this.stateMenu.set(null);
+      window.addEventListener('scroll', close, true);
+      onCleanup(() => window.removeEventListener('scroll', close, true));
     });
   }
 
@@ -446,7 +549,12 @@ export class TicketViewerPage {
 
   async removeFolder(f: Folder) {
     if (this.whyNotDeletable(f) || this.deletingFolder()) return;
-    if (!confirm(`Delete the empty folder “${f.folderName}” (${f.folderCode})?`)) return;
+    if (!(await this.confirm.ask({
+      title: 'Delete folder?',
+      message: `The empty folder “${f.folderName}” (${f.folderCode}) will be removed from this project.`,
+      confirmLabel: 'Delete folder',
+      tone: 'danger',
+    }))) return;
     this.deletingFolder.set(true);
     try {
       await this.api.deleteFolder(this.projectId(), f.folderId);
@@ -484,11 +592,63 @@ export class TicketViewerPage {
     const target = event.target;
     const insideAMenu = target instanceof Element && target.closest('.filter-menu') !== null;
     if (this.openMenu() && !insideAMenu) this.openMenu.set(null);
+    if (this.stateMenu() && !(target instanceof Element && target.closest('.state-menu'))) this.stateMenu.set(null);
   }
 
   @HostListener('document:keydown.escape')
   onEscape() {
     this.openMenu.set(null);
+    this.closeStateMenu();
+  }
+
+  priorityLabel(p: number) {
+    return PRIORITY_LABELS[p] ?? '';
+  }
+
+  /** A chip narrows the list to its state; clicking the chip that is already on clears it. */
+  focusState(state: string) {
+    this.state.set(this.onlyState() === state ? [] : [state]);
+  }
+
+  /** Opens the row's state menu under its pill (above it near the bottom of the window). */
+  openStateMenu(event: MouseEvent, t: Ticket) {
+    event.stopPropagation(); // the row opens the ticket; the pill only opens its menu
+    if (this.stateMenu()?.ticket.ticketId === t.ticketId) return this.closeStateMenu();
+    const pill = event.currentTarget as HTMLElement;
+    const r = pill.getBoundingClientRect();
+    const height = STATES.length * 36 + 10;
+    const top = r.bottom + 4 + height > window.innerHeight ? r.top - height - 4 : r.bottom + 4;
+    this.stateMenu.set({ ticket: t, left: Math.min(r.left, window.innerWidth - 200), top });
+    this.menuReturn = pill;
+    setTimeout(() => document.querySelector<HTMLElement>('.state-menu [data-first]')?.focus());
+  }
+
+  private menuReturn: HTMLElement | null = null;
+
+  private closeStateMenu() {
+    if (!this.stateMenu()) return;
+    this.stateMenu.set(null);
+    this.menuReturn?.focus();
+    this.menuReturn = null;
+  }
+
+  /**
+   * The quick state change. It saves the ticket as the server has it now with only the state
+   * changed, so nothing else is overwritten, and it goes through the normal update: history is
+   * written and a move to Retest notifies the assignee, exactly as from the ticket window.
+   */
+  async setState(t: Ticket, state: TicketState) {
+    this.closeStateMenu();
+    if (state === t.state || this.movingId()) return;
+    this.movingId.set(t.ticketId);
+    try {
+      const current = await this.api.ticket(t.ticketId);
+      await this.api.updateTicket(t.ticketId, { ...toSaveTicket(current), state });
+      this.toast.success(`${t.ticketKey} moved to ${state}.`);
+      this.refresh();
+    } finally {
+      this.movingId.set(null);
+    }
   }
 
   /** Kept in STATES order however they were ticked, so the label reads in workflow order. */
@@ -558,7 +718,13 @@ export class TicketViewerPage {
   private async loadTickets(id: number, folderId: number | null, search: string, states: string[], types: string[], tags: string[], mine: boolean) {
     try {
       const assignedTo = mine ? this.auth.user()?.userId : null;
-      this.tickets.set(await this.api.tickets(id, { folderId, search, states, types, tags, assignedTo }));
+      const filters = { folderId, search, states, types, tags, assignedTo };
+      // The chip counts need the view without its state filter. Asked first, so the list's own
+      // request is always the latest one sent.
+      const scope = states.length ? this.api.tickets(id, { ...filters, states: [] }) : null;
+      const list = await this.api.tickets(id, filters);
+      this.tickets.set(list);
+      this.scope.set(scope ? await scope : list);
     } finally {
       this.loading.set(false);
     }

@@ -1,4 +1,9 @@
+@import "@fontsource-variable/manrope";
+@import "@fontsource-variable/jetbrains-mono";
+
 /* QaDoc — global styles. Single light look, JIRA-inspired. */
+/* Fonts are bundled from @fontsource, not a CDN: the app is a static SPA and should render the
+   same offline and behind a strict CSP. The system stacks stay behind them as fallbacks. */
 
 /*
  * Everything below reads from these. A raw hex in a rule further down is a bug: it was how the
@@ -34,6 +39,9 @@
   --danger-hover: #ae2e24;
   --danger-soft: #fbe9e7;
   --success: #22a06b;
+  /* Nearly full: past three quarters of a ticket limit, before it turns --danger. */
+  --warning: #b45309;
+  --warning-soft: #fef3e2;
   /* Admin's colour, and the avatar tone the app has always defaulted to. */
   --purple: #5e4db2;
   --purple-soft: #f3f0ff;
@@ -54,6 +62,7 @@
   --radius: 6px;               /* buttons, inputs, anything you click */
   --radius-md: 8px;            /* cards, panels */
   --radius-lg: 12px;           /* modals */
+  --radius-xl: 24px;           /* page-sized panels: the sign-in screen's blue half */
   --radius-pill: 999px;
 
   /* ---- Type scale ---- */
@@ -70,14 +79,17 @@
   /* One row, one height: .btn, .filter-button and every toolbar input share --control-h. */
   --control-h: 34px;
   --control-h-sm: 28px;
+  /* A form field: 7px padding twice, a 21px line (14px × 1.5) and a 1px border twice. Chip fields and
+     read-only values use it too, so every box in a form row is the same height. */
+  --field-h: 37px;
 
   --shadow: 0 1px 2px rgba(9, 30, 66, 0.12);
   --shadow-md: 0 6px 20px rgba(9, 30, 66, 0.18);
   --shadow-lg: 0 8px 28px rgba(9, 30, 66, 0.25);
   --ease: .12s ease;
 
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --font: "Manrope Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -196,6 +208,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .project-note { margin: 3px 0 0; font-size: var(--fs-md); color: var(--muted); }
 .project-note strong { color: var(--text); font-weight: 600; }
 .project-note-sep { margin: 0 5px; color: var(--border-strong); }
+/* How much of the project is closed: a short bar and the percentage, on the same line as the counts. */
+.project-progress { display: inline-flex; align-items: center; gap: var(--space-2); vertical-align: middle; font-variant-numeric: tabular-nums; }
+.project-progress .score-bar { width: 96px; height: 6px; }
+.project-progress .score-bar > span { background: var(--success); }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 .page { max-width: 1440px; margin: 0 auto; padding: var(--space-5) var(--space-6) 48px; }
 /* A page title owns the space under it. The h1 default of 4px put "Projects" and the
@@ -209,6 +225,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .empty { text-align: center; padding: 40px var(--space-4); color: var(--text-2); }
 .empty .btn { margin-top: var(--space-2); }
 .toolbar { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); flex-wrap: wrap; }
+/* The tickets in view by state: a chip each, which is also a one-click filter. Same swatches as the
+   state filter, so the two read as one control. */
+.state-strip { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-bottom: var(--space-3); margin-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
+.state-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2); height: var(--control-h-sm); padding: 0 var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface); color: var(--text-2);
+  font: inherit; font-size: var(--fs-md); cursor: pointer; transition: border-color var(--ease), background var(--ease);
+}
+.state-chip:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.state-chip.active { border-color: var(--primary); background: var(--primary-soft); color: var(--primary-hover); }
+.state-chip-count { min-width: 18px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--neutral-100); color: var(--text); font-weight: 600; font-size: var(--fs-sm); text-align: center; font-variant-numeric: tabular-nums; }
+.state-chip.active .state-chip-count { background: var(--surface); }
 .toolbar select { width: auto; min-width: 140px; }
 /* One row, one height. The form inputs size themselves from padding and line-height, which
    lands ~3px above the fixed height of .filter-button and .btn beside them — small, but it reads
@@ -248,7 +276,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .skeleton-row td { padding: var(--space-2) var(--space-2); }
 /* The shimmer is decoration; a vestibular trigger is not worth it. The block still shows. */
 @media (prefers-reduced-motion: reduce) {
-  .skeleton { animation: none; }
+  .skeleton, .picker-panel, .confirm-dialog { animation: none; }
   * { transition-duration: .01ms !important; }
 }
 
@@ -307,20 +335,23 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 /* Arrow, state, arrow, state — one row that scrolls sideways once a ticket has been round the
    loop a few times, rather than wrapping and breaking the left-to-right reading of time. */
 .state-graph { display: flex; align-items: center; gap: var(--space-2); overflow-x: auto; padding: var(--space-2) 0 var(--space-1); }
-.sg-move { flex: none; display: grid; justify-items: center; gap: 2px; min-width: 150px; }
-.sg-label { font-size: var(--fs-md); color: var(--text-2); }
+/* Three rows, the outer two equal, so the arrow sits on the middle line and level with the state
+   boxes, whatever height the date below it takes. */
+.sg-move { flex: none; display: grid; grid-template-rows: 1fr auto 1fr; justify-items: center; row-gap: var(--space-1); min-width: 124px; }
 /* A shaft and a head, drawn in CSS so the arrow stretches with its column and takes the brand colour. */
-.sg-arrow { position: relative; width: 100%; height: 4px; background: var(--primary); margin: var(--space-1) 0; }
+.sg-arrow { grid-row: 2; position: relative; width: 100%; height: 4px; background: var(--primary); }
 .sg-arrow::after {
   content: ''; position: absolute; right: -2px; top: 50%; transform: translateY(-50%);
   border-left: 12px solid var(--primary); border-top: 9px solid transparent; border-bottom: 9px solid transparent;
 }
-.sg-by { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-md); color: var(--text-2); white-space: nowrap; }
-.sg-at { font-size: var(--fs-sm); color: var(--muted); }
+/* Who above the arrow, when below it: the two outer rows stay equal, so the arrow keeps the middle line. */
+.sg-by { grid-row: 1; align-self: end; display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-sm); font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.sg-by .avatar-sm { width: 18px; height: 18px; font-size: 8px; }
+.sg-at { grid-row: 3; align-self: start; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sg-state {
   flex: none; display: inline-flex; align-items: center; gap: var(--space-2); align-self: center;
   padding: var(--space-3) var(--space-4); background: var(--primary-soft); border-radius: var(--radius-sm);
-  font-weight: 500; white-space: nowrap; margin-bottom: 38px; /* level with the arrows, not the names below them */
+  font-weight: 500; white-space: nowrap;
 }
 .sg-current { box-shadow: inset 0 0 0 1px var(--primary-border); }
 /* The dot takes the state's colour from the ticket list, so a state looks the same everywhere. */
@@ -363,6 +394,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 
 /* ---------- Folder rail (Project - Folder - Ticket) ---------- */
 .folder-layout { display: flex; align-items: flex-start; gap: var(--space-4); }
+/* min-width 0 lets the ticket card shrink to the page, so a wide table scrolls inside its own box
+   instead of pushing the whole page sideways on a tablet or phone. */
+.folder-layout > .card.grow { min-width: 0; width: 100%; }
 .folder-rail { flex: 0 0 200px; display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); }
 .folder-rail .section-title { margin-bottom: var(--space-1); }
 .folder-item {
@@ -374,6 +408,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .folder-item:hover { background: var(--neutral-50); }
 .folder-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The ticket count after each name: equal-width digits so 8 and 18 line up down the rail. */
+/* "open/total": the open number carries the weight, the total sits back. Equal-width digits line
+   the counts up down the rail. A folder with nothing open fades, so the ones with work stand out. */
+.folder-count { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.folder-count b { color: var(--text); font-weight: 600; }
+.folder-item.active .folder-count b { color: var(--primary); }
+.folder-done:not(.active) .folder-name, .folder-done:not(.active) .folder-count b { color: var(--muted); font-weight: 400; }
 .folder-add { color: var(--primary); font-weight: 600; margin-top: var(--space-1); }
 .folder-search { padding: 5px var(--space-2); font-size: var(--fs-md); margin-bottom: var(--space-1); }
 .folder-empty { padding: var(--space-1) var(--space-2); margin: 0; }
@@ -399,6 +440,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
 .row-selected { background: var(--primary-soft) !important; }
 .clickable { cursor: pointer; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* A date column: equal-width digits so "1 Oct" and "11 Oct" keep their times aligned row to row. */
+.col-date { font-variant-numeric: tabular-nums; }
 /* Beats `.table th`, so a count sits directly under its own heading. */
 .table th.num { text-align: right; width: 110px; }
 .w-id { width: 72px; }
@@ -406,7 +449,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
    source order rather than intent. 1% + nowrap is the one that was wanted: shrink to the buttons. */
 .w-actions { width: 1%; white-space: nowrap; padding-left: 0 !important; padding-right: var(--space-1) !important; text-align: right; }
 .row-menu { position: relative; display: inline-block; }
-.title-cell { font-weight: 500; min-width: 320px; overflow-wrap: anywhere; }
+/* 240px, not more: with the Priority column the row must still fit the card without scrolling sideways. */
+.title-cell { font-weight: 500; min-width: 240px; overflow-wrap: anywhere; }
 /* The assignee is a fixed, narrow track: long names ellipsize rather than push the title out. */
 .col-assignee { width: 1%; max-width: 160px; white-space: nowrap; }
 .col-assignee .person { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%; }
@@ -415,6 +459,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
    width:1% + nowrap shrinks a column to exactly its content. */
 .col-grow { width: 100%; }
 .col-fit { width: 1%; white-space: nowrap; }
+/* Priority: a glyph and the number, coloured by urgency (1 red, 2 amber, 3 grey, 4 blue). */
+.col-priority { width: 1%; white-space: nowrap; }
+.prio { display: inline-flex; align-items: center; gap: 2px; font-weight: 600; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.prio .icon { width: 16px; height: 16px; }
+.prio-1 { color: var(--danger); }
+.prio-2 { color: var(--warning); }
+.prio-3 { color: var(--muted); }
+.prio-4 { color: var(--primary); }
 .col-tags { width: 1%; min-width: 90px; }
 .th-sort { border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; padding: 0; display: inline-flex; gap: var(--space-1); align-items: center; }
 .th-sort:hover { color: var(--text); }
@@ -496,6 +548,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
    row as one family of chips. The colours and bold uppercase stay: they are what make a state
    readable at a glance, which a tag does not need to be. */
 .state { display: inline-flex; align-items: center; font-size: var(--fs-xs); font-weight: 700; line-height: 18px; padding: 1px var(--space-2); border-radius: var(--radius-sm); text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+/* The same pill as a button in the list, for the quick state change. The caret says it opens. */
+.state-button { border: 0; font-family: inherit; cursor: pointer; gap: 3px; }
+.state-button .icon { width: 11px; height: 11px; opacity: .75; }
+.state-button:hover:not(:disabled) { filter: brightness(.95); box-shadow: 0 0 0 2px var(--primary-border); }
+.state-button:disabled { cursor: progress; opacity: .6; }
+/* The quick state menu, fixed from the pill's position; above the page, below dialogs. */
+.menu.state-menu { position: fixed; right: auto; min-width: 190px; z-index: 60; }
+.menu .state-menu button, .state-menu button { display: flex; align-items: center; gap: var(--space-2); }
+.state-menu button.current { font-weight: 600; }
+.state-menu .icon { color: var(--primary); width: 14px; height: 14px; }
 /*
  * The five states read as one journey: grey to do, then three shades of blue for work in
  * flight — standard while it is being worked, lighter while it waits for confirmation, darker
@@ -529,7 +591,7 @@ select.state-select { font-weight: 600; }
    happened to carry two tags. */
 .table .tags { flex-wrap: nowrap; }
 .tag { display: inline-flex; align-items: center; gap: 2px; background: var(--neutral-100); color: var(--text-2); border-radius: var(--radius-sm); padding: 1px var(--space-2); font-size: var(--fs-sm); white-space: nowrap; }
-.tag-input { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px var(--space-2); background: var(--surface); cursor: text; min-height: 36px; }
+.tag-input { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px var(--space-2); background: var(--surface); cursor: text; min-height: var(--field-h); }
 .tag-input:focus-within { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
 .tag-input input { border: 0; outline: 0; padding: 2px; flex: 1; min-width: 100px; width: auto; }
 .tag-input input:focus { outline: 0; }
@@ -537,22 +599,86 @@ select.state-select { font-weight: 600; }
 /* Smaller than the shared .icon-close: at full size the cross outweighs the word it dismisses. */
 .tag-remove .icon { width: 12px; height: 12px; }
 .tag-remove:hover { color: var(--danger); }
-/* Assigned To reuses the tag input's box: a chip per person, then a borderless "add" select that
-   takes the rest of the line, the way the tag input's text field does. */
-.assignee-chip { gap: var(--space-1); padding-left: 2px; }
-.assignee-chip .avatar-sm { width: 18px; height: 18px; font-size: 8px; }
-.assignee-picker .assignee-add { flex: 1; min-width: 180px; width: auto; border: 0; padding: 2px; background: transparent; color: var(--muted); cursor: pointer; }
-.assignee-picker .assignee-add:focus { outline: 0; color: var(--text); }
-.col-assignee .count { margin-left: 2px; }
-.assignee-chip.assignee-over { background: var(--danger-soft); color: var(--danger); }
-.assignee-over-icon { width: 12px; height: 12px; }
 
+
+/* ---------- Assignee picker ---------- */
+/* Assigned To: a button the size of every other field, showing who has the ticket, and a list of
+   people with their load. Built rather than a <select> because a native list can hold neither an
+   avatar nor a load bar, and draws its group headings in whatever the browser likes. */
+app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.picker-trigger {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%; height: var(--field-h);
+  padding: 0 var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--ease);
+}
+.picker-trigger:hover:not(:disabled) { border-color: var(--muted); }
+.picker-trigger.picker-open, .picker-trigger:focus-visible { outline: 2px solid var(--primary); outline-offset: -1px; border-color: var(--primary); }
+.picker-trigger:disabled { background: var(--neutral-50); color: var(--muted); cursor: default; }
+.picker-trigger .avatar-sm { width: 20px; height: 20px; font-size: 9px; }
+.picker-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-placeholder { color: var(--muted); }
+/* Weighted like the native <select> arrows beside it, so the row of fields reads as one set. */
+.picker-caret { width: 14px; height: 14px; color: var(--text); transition: transform var(--ease); }
+.picker-open .picker-caret { transform: rotate(180deg); }
+.picker-trigger.picker-over, .picker-trigger.picker-over:hover:not(:disabled) { border-color: var(--danger); }
+.picker-over-hint { color: var(--danger); }
+/* "Unassigned" gets an empty dashed circle where a person's avatar would be, so the names line up. */
+.picker-none-mark { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 1.5px dashed var(--border-strong); }
+
+/* Fixed to the viewport (placed from the button's position) so a scrolling dialog cannot clip it.
+   Above dialogs (100), below the user hover card (300). */
+.picker-panel {
+  position: fixed; z-index: 150; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: var(--space-1);
+  animation: picker-in .12s ease-out;
+}
+@keyframes picker-in { from { opacity: 0; transform: translateY(-4px); } }
+.picker-search {
+  display: flex; align-items: center; gap: var(--space-2); height: var(--control-h);
+  padding: 0 var(--space-2); margin-bottom: var(--space-1); border-bottom: 1px solid var(--border); color: var(--muted);
+}
+.picker-search input { border: 0; padding: 0; background: transparent; outline: 0; height: 100%; }
+.picker-search input:focus { outline: 0; }
+.picker-list { max-height: 300px; overflow-y: auto; outline: 0; }
+.picker-group {
+  padding: var(--space-2) var(--space-2) var(--space-1); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: .4px; text-transform: uppercase; color: var(--muted);
+}
+/* Avatar, name, tick, load on fixed tracks: names start on one line and the load column is a
+   straight edge down the list, whoever is in it. */
+.picker-option {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) 16px 96px; align-items: center; gap: var(--space-2);
+  height: 36px; padding: 0 var(--space-2); border-radius: var(--radius-sm); cursor: pointer;
+}
+.picker-option .avatar-sm { width: 22px; height: 22px; }
+.picker-option .picker-none-mark { width: 22px; height: 22px; }
+.picker-option.active { background: var(--neutral-50); }
+.picker-option.picked { background: var(--primary-soft); }
+.picker-option.picked.active { background: var(--primary-soft-2); }
+.picker-option.picked .picker-name { font-weight: 600; color: var(--primary-hover); }
+.picker-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-check { display: grid; place-items: center; color: var(--primary); }
+.picker-check .icon { width: 14px; height: 14px; }
+.picker-load { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); font-size: var(--fs-sm); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.picker-bar { width: 44px; height: 6px; flex: none; border-radius: var(--radius-pill); background: var(--neutral-100); overflow: hidden; }
+.picker-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.picker-count { min-width: 38px; text-align: right; white-space: nowrap; }
+.picker-load-none .picker-count { color: var(--muted); }
+.picker-load-near .picker-bar > span { background: var(--warning); }
+.picker-load-near .picker-count { color: var(--warning); font-weight: 600; }
+.picker-load-full .picker-bar > span { background: var(--danger); }
+.picker-load-full .picker-count { color: var(--danger); font-weight: 700; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .3px; }
+.picker-empty { margin: 0; padding: var(--space-3) var(--space-2); color: var(--muted); font-size: var(--fs-md); }
 /* ---------- Ticket Details ---------- */
 .details-box { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); background: var(--surface-2); }
 .box-title { font-size: var(--fs-md); text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin: 0 0 var(--space-2); display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
-.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3) var(--space-4); }
+/* Three equal columns; a field spans two (Tag) or the whole row (Title, State Graph, Description). */
+.details-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
 .detail { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.detail.span-2 { grid-column: 1 / -1; }
+.detail.span-2 { grid-column: span 2; }
+.detail.span-all { grid-column: 1 / -1; }
 .field-label { font-weight: 600; color: var(--text-2); font-size: var(--fs-md); }
 
 /* ---------- Description editor ---------- */
@@ -616,7 +742,15 @@ select.state-select { font-weight: 600; }
 .rte-video-player { display: block; width: 100%; max-height: 70vh; background: #000; border-radius: var(--radius); }
 .rte-editor ul, .rte-editor ol { margin: var(--space-1) 0; padding-left: 22px; }
 .detail-label { font-size: var(--fs-sm); font-weight: 600; color: var(--muted); }
-.detail-value { font-weight: 500; padding: var(--space-1) 0; }
+/* A read-only value is drawn as a quiet grey field (no arrow, no caret): the same height, corner and inset
+   as the input beside it, so the row lines up box to box and the text starts where theirs does. */
+.detail-value {
+  display: flex; align-items: center; gap: var(--space-2); min-height: var(--field-h); min-width: 0;
+  padding: 0 var(--space-2); border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--neutral-50); font-weight: 500;
+}
+.detail-value .avatar-sm { width: 20px; height: 20px; font-size: 9px; }
+.detail-value-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .box-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border); flex-wrap: wrap; }
 .count { font-size: var(--fs-sm); color: var(--muted); background: var(--neutral-100); border-radius: var(--radius-pill); padding: 0 7px; font-weight: 600; letter-spacing: 0; }
 
@@ -637,6 +771,26 @@ select.state-select { font-weight: 600; }
 .modal-footer { display: flex; align-items: center; gap: var(--space-2); justify-content: flex-end; padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border); }
 /* Pushed to the far left so the buttons stay grouped on the right. */
 .modal-footer .footer-note { margin-right: auto; }
+/* The app's "are you sure?" (ConfirmDialog). Above the ticket window and the picture viewer (200),
+   below the user hover card (300). Narrow: a question and two buttons, not a form. The round mark
+   carries the tone (red for deleting, amber for a warning you may override, blue otherwise). */
+.confirm-backdrop { z-index: 250; }
+.confirm-dialog { max-width: 440px; animation: picker-in .12s ease-out; }
+.confirm-body { display: flex; gap: var(--space-3); padding: var(--space-5) var(--space-5) var(--space-4); }
+.confirm-mark { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+.confirm-mark .icon { width: 18px; height: 18px; }
+.confirm-danger .confirm-mark { background: var(--danger-soft); color: var(--danger); }
+.confirm-warning .confirm-mark { background: var(--warning-soft); color: var(--warning); }
+.confirm-text { min-width: 0; flex: 1; }
+.confirm-text h2 { font-size: var(--fs-h3); margin: 6px 0 var(--space-1); }
+.confirm-text p { color: var(--text-2); margin: 0; }
+/* The person an "assign anyway?" is about, drawn like their row in the picker that raised it. */
+.confirm-person {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2);
+  margin-top: var(--space-3); padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2);
+}
+.confirm-person .avatar-sm { width: 22px; height: 22px; }
+.confirm-person-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Picture viewer ---------- */
 /* Above .modal-backdrop (z-index 100) so it covers the ticket dialog it opens from. */
@@ -666,15 +820,35 @@ select.state-select { font-weight: 600; }
 .toast .icon-btn:hover { background: rgba(255, 255, 255, .16); color: var(--on-dark); }
 
 /* ---------- Auth ---------- */
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: var(--space-5) var(--space-4); }
-.auth-card { width: 100%; max-width: 400px; padding: var(--space-5); margin: 0; }
-.auth-card h1 { font-size: 20px; margin: var(--space-4) 0 var(--space-1); }
-.auth-card .form { margin-top: var(--space-3); }
+/* Two halves: the logo on white, the form in a card on a brand-blue panel with a rounded inner edge. */
+.auth-page { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); }
 /* The one place the mark is the subject rather than chrome, so it is the one place it is large. */
-.auth-brand { justify-content: center; }
-/* Large enough that the lockup's "DOCUMENTATION" line is actually legible — below about 70px
-   it degrades into the smudge that made the mark unusable in the top bar. */
-.auth-brand .brand-logo { height: 76px; }
+.auth-art { display: grid; place-items: center; padding: var(--space-6); }
+.auth-logo { width: min(380px, 80%); height: auto; }
+.auth-panel {
+  position: relative; overflow: hidden; display: grid; place-items: center;
+  padding: var(--space-6) var(--space-4); background: var(--primary);
+  border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+}
+/* Two thin arcs rising from the bottom-right corner: decoration only, behind the card. */
+.auth-panel::before, .auth-panel::after {
+  content: ''; position: absolute; width: 440px; height: 440px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--on-dark) 55%, transparent); pointer-events: none;
+}
+.auth-panel::before { right: -120px; bottom: -300px; }
+.auth-panel::after { right: -200px; bottom: -320px; }
+.auth-card {
+  position: relative; z-index: 1; width: 100%; max-width: 380px;
+  padding: var(--space-6) var(--space-5); background: var(--surface);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+}
+.auth-card h1 { font-size: var(--fs-h1); font-weight: 700; margin: 0 0 var(--space-1); }
+.auth-sub { color: var(--text-2); margin: 0 0 var(--space-4); }
+/* Pill fields with the icon inside on the left, standing in for the visible label. */
+.form .auth-field { display: block; position: relative; }
+.auth-field .icon { position: absolute; left: var(--space-4); top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.auth-field input { height: 46px; padding: 0 var(--space-4) 0 44px; border-radius: var(--radius-pill); }
+.auth-card .btn-block { height: 46px; border-radius: var(--radius-pill); }
 .auth-help { margin: var(--space-4) 0 0; text-align: center; }
 /* A rule with the word "or" sitting in a gap in the middle of it. */
 .auth-or { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); color: var(--muted); font-size: var(--fs-sm); }
@@ -701,6 +875,23 @@ select.state-select { font-weight: 600; }
 .menu-header { display: flex; flex-direction: column; padding: var(--space-2) var(--space-2) var(--space-2); border-bottom: 1px solid var(--border); margin-bottom: var(--space-1); }
 .menu a, .menu button { text-align: left; border: 0; background: transparent; font: inherit; color: var(--text); padding: var(--space-2); border-radius: var(--radius); cursor: pointer; text-decoration: none; transition: background var(--ease); }
 .menu a:hover, .menu button:hover { background: var(--neutral-50); text-decoration: none; }
+/* The account menu: who you are, then groups (Go to / Admin / Account), each entry with its icon.
+   The page you are on is tinted, and Sign out warns in red on hover. */
+.account-menu { min-width: 264px; }
+.account-head { flex-direction: row; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-2) var(--space-3); }
+.account-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-meta { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.account-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-group { display: flex; flex-direction: column; }
+.menu-group + .menu-group, .account-menu > a + .menu-group { border-top: 1px solid var(--border); margin-top: var(--space-1); padding-top: var(--space-1); }
+.menu-label { padding: var(--space-1) var(--space-2) 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+.account-menu a, .account-menu button { display: flex; align-items: center; gap: var(--space-2); }
+.account-menu a .icon, .account-menu button .icon { color: var(--muted); transition: color var(--ease); }
+.account-menu a.active { background: var(--primary-soft); color: var(--primary-hover); font-weight: 600; }
+.account-menu a.active .icon { color: var(--primary); }
+.account-menu .menu-danger:hover { background: var(--danger-soft); color: var(--danger); }
+.account-menu .menu-danger:hover .icon { color: var(--danger); }
 
 /* ---------- Notifications ---------- */
 .bell-menu { position: relative; }
@@ -727,6 +918,10 @@ select.state-select { font-weight: 600; }
 .person { display: inline-flex; align-items: center; gap: var(--space-2); }
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--avatar-bg, var(--purple)); color: var(--on-dark); font-size: var(--fs-xs); font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
 .avatar-sm { width: 22px; height: 22px; font-size: 9px; }
+.avatar-lg { width: 40px; height: 40px; font-size: var(--fs-sm); }
+.avatar-xl { width: 112px; height: 112px; font-size: 36px; }
+/* A profile picture fills the same circle the initials did, cropped to it, never stretched. */
+.avatar-img { object-fit: cover; background: var(--neutral-100); }
 /*
  * Eight tones, picked from the name by `avatarTone()` so the same person keeps the same colour
  * everywhere. Every avatar was one purple before, which turned a column of them into a single
@@ -799,6 +994,28 @@ select.state-select { font-weight: 600; }
 }
 .col-type .type-chip { gap: 0; }
 
+
+/* ---------- Profile ---------- */
+/* Picture and account on the left, the details form on the right; stacked on a phone. */
+.profile-grid { display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.profile-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-1); padding: var(--space-5) var(--space-4); margin: 0; }
+.profile-photo { position: relative; margin-bottom: var(--space-2); border-radius: 50%; box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--border); }
+.profile-photo-busy { opacity: .6; }
+.profile-name { font-size: var(--fs-h2); line-height: 1.3; overflow-wrap: anywhere; }
+.profile-photo-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: center; margin-top: var(--space-3); }
+.profile-card .hint { margin: 0; }
+/* Read-only facts as label/value rows under a hairline, so they read as the account, not the form. */
+.profile-facts { width: 100%; margin: var(--space-4) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border); display: grid; gap: var(--space-2); text-align: left; }
+.profile-facts div { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+.profile-facts dt { color: var(--muted); font-size: var(--fs-md); }
+.profile-facts dd { margin: 0; font-weight: 500; }
+.profile-form-card { margin: 0; }
+.profile-form-card .section-title { margin-bottom: var(--space-3); }
+.profile-count { align-self: flex-end; font-weight: 400; }
+.profile-form-card .box-actions .link-btn { display: inline-flex; align-items: center; gap: var(--space-1); text-decoration: none; }
+.profile-form-card .box-actions .link-btn:hover { text-decoration: underline; }
+.user-card-who { display: flex; flex-direction: column; min-width: 0; }
+.user-card-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* ---------- Responsive ---------- */
 /* Below tablet the folder rail becomes a horizontal strip so the table keeps the full width. */
 @media (max-width: 860px) {
@@ -806,6 +1023,11 @@ select.state-select { font-weight: 600; }
   .folder-rail { flex: 1 1 auto; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .folder-rail .section-title { width: 100%; }
   .folder-item { width: auto; }
+  /* Sign-in stacks: a smaller logo on top, the blue panel below with its rounded edge facing up. */
+  .auth-page { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .auth-art { padding: var(--space-5) var(--space-4); }
+  .auth-logo { width: 200px; }
+  .auth-panel { border-radius: var(--radius-xl) var(--radius-xl) 0 0; place-items: start center; }
 }
 
 /* The single phone block. There used to be two of these, 70 lines apart, which is how a rule for
@@ -814,6 +1036,12 @@ select.state-select { font-weight: 600; }
   .topbar, .page { padding-left: var(--space-4); padding-right: var(--space-4); }
   .page { padding-top: var(--space-4); }
   .details-grid { grid-template-columns: 1fr; }
+  .profile-grid { grid-template-columns: 1fr; }
+  /* The password link takes its own row; Discard and Save share the one below, evenly. */
+  .profile-form-card .box-actions .link-btn { width: 100%; }
+  .profile-form-card .box-actions .push-left { display: none; }
+  .profile-form-card .box-actions .btn { flex: 1; }
+  .detail.span-2 { grid-column: auto; }
   /* The search takes the whole first row: sharing it with a filter leaves both too narrow to
      read their own placeholder. */
   .search { max-width: none; }

@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard, guestGuard, leaderGuard } from './core/auth.guards';
+import { accountGuard, adminGuard, authGuard, guestGuard, leaderGuard } from './core/auth.guards';
 
 export const routes: Routes = [
   {
@@ -41,6 +41,12 @@ export const routes: Routes = [
         canActivate: [adminGuard],
         loadComponent: () => import('./pages/users/users').then((m) => m.UsersPage),
         title: 'Users · QaDoc',
+      },
+      {
+        path: 'profile',
+        canActivate: [accountGuard],
+        loadComponent: () => import('./pages/profile/profile').then((m) => m.ProfilePage),
+        title: 'Profile · QaDoc',
       },
     ],
   },

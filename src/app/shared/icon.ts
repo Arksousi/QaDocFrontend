@@ -22,7 +22,18 @@ export type IconName =
   | 'plus'
   | 'search'
   | 'tag'
-  | 'bell';
+  | 'bell'
+  | 'user'
+  | 'lock'
+  | 'priority-1'
+  | 'priority-2'
+  | 'priority-3'
+  | 'priority-4'
+  | 'folder'
+  | 'chart'
+  | 'users'
+  | 'shield'
+  | 'logout';
 
 /**
  * The line-icon family, drawn inline for the same reason `TypeIcon` is: an emoji picks up whatever
@@ -97,6 +108,19 @@ export type IconName =
           <path d="M4 11.2V7.2a4 4 0 0 1 8 0v4l1.2 1.3H2.8z" />
           <path d="M6.6 14a1.5 1.5 0 0 0 2.8 0" />
         }
+        @case ('user') { <circle cx="8" cy="5.4" r="2.6" /><path d="M3 13.6c.6-2.5 2.6-3.9 5-3.9s4.4 1.4 5 3.9" /> }
+        @case ('lock') { <rect x="3.3" y="7" width="9.4" height="6.6" rx="1.4" /><path d="M5.5 7V5.1a2.5 2.5 0 0 1 5 0V7" /> }
+        @case ('priority-1') {
+          <!-- Priority, most to least urgent: two chevrons up, one up, a level bar, one down. -->
+          <path d="M4 8.6 8 4.8l4 3.8M4 12.2 8 8.4l4 3.8" stroke-width="1.8" /> }
+        @case ('priority-2') { <path d="M4 10.2 8 6.4l4 3.8" stroke-width="1.8" /> }
+        @case ('priority-3') { <path d="M4 6.6h8M4 9.8h8" stroke-width="1.8" /> }
+        @case ('priority-4') { <path d="M4 6.2 8 10l4-3.8" stroke-width="1.8" /> }
+        @case ('folder') { <path d="M2 4.6a1 1 0 0 1 1-1h3.1l1.4 1.5H13a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" /> }
+        @case ('chart') { <path d="M2 13.5h12M4 11.5V8M8 11.5V4M12 11.5V6.5" /> }
+        @case ('users') { <circle cx="6" cy="5.6" r="2.3" /><path d="M1.8 13.2c.5-2.2 2.2-3.5 4.2-3.5s3.7 1.3 4.2 3.5M10.6 3.6a2.1 2.1 0 0 1 0 4.1M11.7 9.9c1.3.4 2.2 1.5 2.5 3.1" /> }
+        @case ('shield') { <path d="M8 1.8 13 3.7v3.9c0 3-2.1 5.3-5 6.6-2.9-1.3-5-3.6-5-6.6V3.7z" /><path d="M5.9 8.1 7.4 9.6l2.8-2.8" /> }
+        @case ('logout') { <path d="M6.5 2.5h-3v11h3M10.2 5l3 3-3 3M13.2 8H6.4" /> }
       }
     </svg>
   `,

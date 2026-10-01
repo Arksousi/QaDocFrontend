@@ -23,3 +23,9 @@ export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
   return auth.user() ? inject(Router).createUrlTree(['/']) : true;
 };
+
+/** A real account only: a guest tour has no profile to show or edit. */
+export const accountGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  return auth.user() && !auth.isGuest() ? true : inject(Router).createUrlTree(['/']);
+};
