@@ -2,9 +2,6 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { MemberScore, ProjectScoreboard, avatarTone, initials } from '../../core/models';
-import { Icon } from '../../shared/icon';
-import { ProjectCreate } from '../../shared/project-create';
-import { Topbar } from '../../shared/topbar';
 import { Avatar } from '../../shared/avatar';
 
 interface MemberRow extends MemberScore {
@@ -19,26 +16,19 @@ interface ScoreCard {
   members: MemberRow[];
 }
 
-/** Admins and Leaders: every project they are on, each with its open-ticket ring and per-member progress. */
+/**
+ * Leader tab of the merged Dashboard: every project the person is on, each with its open-ticket
+ * ring and per-member progress. The Dashboard page owns the topbar, heading and tabs.
+ */
 @Component({
   selector: 'app-leader',
-  imports: [Avatar, RouterLink, Topbar, ProjectCreate, Icon],
+  imports: [Avatar, RouterLink],
   template: `
-    <app-topbar crumb="Leader Dashboard">
-      <button class="btn btn-primary" (click)="adding.set(true)"><app-icon name="plus" /> Add project</button>
-    </app-topbar>
+    @if (!loading() && cards().length) {
+      <p class="muted">{{ cards().length }} {{ cards().length === 1 ? 'project' : 'projects' }} · {{ openTotal() }} opened tickets across them</p>
+    }
 
-    <main class="page">
-      <div class="page-header">
-        <div>
-          <h1>Leader Dashboard</h1>
-          @if (!loading() && cards().length) {
-            <p class="muted">{{ cards().length }} {{ cards().length === 1 ? 'project' : 'projects' }} · {{ openTotal() }} opened tickets across them</p>
-          }
-        </div>
-      </div>
-
-      @if (loading()) {
+    @if (loading()) {
         <div aria-hidden="true">
           @for (i of placeholders; track i) { <div class="skeleton skeleton-score card"></div> }
         </div>
@@ -102,11 +92,6 @@ interface ScoreCard {
           </div>
         }
       }
-    </main>
-
-    @if (adding()) {
-      <app-project-create (closed)="adding.set(false)" />
-    }
   `,
 })
 export class LeaderPage implements OnInit {
@@ -115,7 +100,6 @@ export class LeaderPage implements OnInit {
   readonly placeholders = [0, 1];
   readonly projects = signal<ProjectScoreboard[]>([]);
   readonly loading = signal(true);
-  readonly adding = signal(false);
   readonly initialsOf = initials;
   readonly toneOf = avatarTone;
 

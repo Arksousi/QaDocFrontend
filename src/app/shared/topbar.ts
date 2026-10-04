@@ -3,6 +3,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../core/auth.service';
+import { ApiService } from '../core/api.service';
+import { TicketSearchResult } from '../core/models';
 import { ChangePassword } from './change-password';
 import { Icon } from './icon';
 import { NotificationBell } from './notification-bell';
@@ -28,6 +30,31 @@ import { Avatar } from './avatar';
       }
       <div class="topbar-actions">
         <ng-content />
+        @if (auth.user()) {
+          <!-- Global search across every project this account can see; two characters start it. -->
+          <div class="topbar-search">
+            <app-icon name="search" />
+            <!-- type="text", not "search": Chromium clears a search input on Escape, which would
+                 eat the query the user is about to correct. -->
+            <input #globalSearch type="text" inputmode="search" placeholder="Search tickets" autocomplete="off"
+              aria-label="Search all projects" [value]="query()"
+              (input)="onSearchInput(globalSearch.value)" (keydown.enter)="openFirst()" />
+            @if (searchOpen()) {
+              <div class="menu search-results" role="listbox" aria-label="Search results">
+                @for (hit of results(); track hit.ticketId) {
+                  <a role="option" class="search-hit" [routerLink]="['/projects', hit.projectId]"
+                    [queryParams]="{ ticket: hit.ticketId }" (click)="closeSearch()">
+                    <span class="id-chip">{{ hit.ticketKey }}</span>
+                    <span class="hit-title">{{ hit.title }}</span>
+                    <span class="hit-project muted small">{{ hit.projectName }}</span>
+                  </a>
+                } @empty {
+                  <p class="search-empty muted small">No tickets match “{{ query() }}”.</p>
+                }
+              </div>
+            }
+          </div>
+        }
         @if (auth.user() && !auth.isGuest()) {
           <app-notification-bell />
         }
@@ -69,11 +96,11 @@ import { Avatar } from './avatar';
                     <app-icon name="folder" /> Projects
                   </a>
                   @if (auth.canLead()) {
-                    <a role="menuitem" routerLink="/leader" [class.active]="isAt('/leader')" (click)="menuOpen.set(false)">
-                      <app-icon name="chart" /> Leader Dashboard
-                    </a>
-                    <a role="menuitem" routerLink="/users-dashboard" [class.active]="isAt('/users-dashboard')" (click)="menuOpen.set(false)">
-                      <app-icon name="users" /> Users Dashboard
+                    <!-- One Dashboard now holds both views; the legacy paths still count as here. -->
+                    <a role="menuitem" routerLink="/dashboard"
+                      [class.active]="isAt('/dashboard') || isAt('/leader') || isAt('/users-dashboard')"
+                      (click)="menuOpen.set(false)">
+                      <app-icon name="chart" /> Dashboard
                     </a>
                   }
                 </div>
@@ -117,7 +144,52 @@ import { Avatar } from './avatar';
 export class Topbar {
   protected readonly auth = inject(AuthService);
   private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly api = inject(ApiService);
 
+  readonly query = signal('');
+  readonly results = signal<TicketSearchResult[]>([]);
+  readonly searchOpen = signal(false);
+  /** Debounce token and request counter: only the last keystroke's answer may speak. */
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  private searchSeq = 0;
+
+  /** Fires 250ms after the last keystroke — the same debounce the ticket list search uses. */
+  onSearchInput(value: string) {
+    this.query.set(value);
+    this.searchOpen.set(false);
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+
+    const q = value.trim();
+    if (q.length < 2) {
+      this.results.set([]);
+      return;
+    }
+    const seq = ++this.searchSeq;
+    this.searchTimer = setTimeout(async () => {
+      let hits: TicketSearchResult[];
+      try {
+        hits = await this.api.searchTickets(q);
+      } catch {
+        // The error interceptor has already surfaced why; show nothing rather than a stale list.
+        return;
+      }
+      if (seq !== this.searchSeq) return; // a later keystroke has since spoken for us
+      this.results.set(hits);
+      this.searchOpen.set(true);
+    }, 250);
+  }
+
+  closeSearch() {
+    this.searchOpen.set(false);
+  }
+
+  /** Enter opens the top hit, so a pasted key never needs the mouse. */
+  openFirst() {
+    const first = this.results()[0];
+    if (!first) return;
+    this.closeSearch();
+    this.router.navigate(['/projects', first.projectId], { queryParams: { ticket: first.ticketId } });
+  }
   /** Set on any page below Projects; its presence is what shows the way back. */
   readonly crumb = input<string | null>(null);
   readonly menuOpen = signal(false);
@@ -138,13 +210,15 @@ export class Topbar {
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent) {
-    if (this.menuOpen() && !this.host.nativeElement.querySelector('.user-menu')?.contains(event.target as Node)) {
-      this.menuOpen.set(false);
-    }
+    const inMenu = this.host.nativeElement.querySelector('.user-menu')?.contains(event.target as Node);
+    if (this.menuOpen() && !inMenu) this.menuOpen.set(false);
+    const inSearch = this.host.nativeElement.querySelector('.topbar-search')?.contains(event.target as Node);
+    if (this.searchOpen() && !inSearch) this.searchOpen.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape() {
     this.menuOpen.set(false);
+    this.searchOpen.set(false);
   }
 }

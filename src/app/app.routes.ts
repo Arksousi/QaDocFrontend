@@ -25,16 +25,25 @@ export const routes: Routes = [
         title: 'Tickets · QaDoc',
       },
       {
+        path: 'dashboard',
+        canActivate: [leaderGuard],
+        loadComponent: () => import('./pages/dashboard/dashboard').then((m) => m.DashboardPage),
+        title: 'Dashboard · QaDoc',
+      },
+      {
+        // The two dashboards merged into one page; these old URLs open it on the tab they were.
         path: 'leader',
         canActivate: [leaderGuard],
-        loadComponent: () => import('./pages/leader/leader').then((m) => m.LeaderPage),
-        title: 'Leader Dashboard · QaDoc',
+        loadComponent: () => import('./pages/dashboard/dashboard').then((m) => m.DashboardPage),
+        title: 'Dashboard · QaDoc',
+        data: { tab: 'leader' },
       },
       {
         path: 'users-dashboard',
         canActivate: [leaderGuard],
-        loadComponent: () => import('./pages/users-dashboard/users-dashboard').then((m) => m.UsersDashboardPage),
-        title: 'Users Dashboard · QaDoc',
+        loadComponent: () => import('./pages/dashboard/dashboard').then((m) => m.DashboardPage),
+        title: 'Dashboard · QaDoc',
+        data: { tab: 'workload' },
       },
       {
         path: 'users',

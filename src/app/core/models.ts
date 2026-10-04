@@ -253,6 +253,19 @@ export interface Folder {
   openTicketCount: number;
 }
 
+/** One hit from the top-bar global search: enough to show what matched and where it lives. */
+export interface TicketSearchResult {
+  ticketId: number;
+  projectId: number;
+  projectName: string;
+  /** e.g. RMS-V1-0007, assembled by the API. */
+  ticketKey: string;
+  title: string;
+  state: TicketState;
+  ticketType: TicketType;
+  activityDate: string;
+}
+
 export interface Ticket {
   ticketId: number;
   projectId: number;

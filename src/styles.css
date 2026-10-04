@@ -886,6 +886,19 @@ app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1)
 .menu-group { display: flex; flex-direction: column; }
 .menu-group + .menu-group, .account-menu > a + .menu-group { border-top: 1px solid var(--border); margin-top: var(--space-1); padding-top: var(--space-1); }
 .menu-label { padding: var(--space-1) var(--space-2) 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
+
+/* Top-bar global search: an input with a results dropdown that reuses .menu's chrome. */
+.topbar-search { position: relative; display: flex; align-items: center; gap: var(--space-1); color: var(--muted); }
+.topbar-search input { width: 230px; padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+.search-results { right: auto; left: 0; min-width: 100%; width: min(420px, 80vw); max-height: 60vh; overflow-y: auto; }
+.search-hit { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.search-hit .id-chip { align-self: center; flex: none; }
+.search-hit .hit-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-hit .hit-project { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-empty { padding: var(--space-2); margin: 0; }
+@media (max-width: 560px) {
+  .topbar-search input { width: 130px; }
+}
 .account-menu a, .account-menu button { display: flex; align-items: center; gap: var(--space-2); }
 .account-menu a .icon, .account-menu button .icon { color: var(--muted); transition: color var(--ease); }
 .account-menu a.active { background: var(--primary-soft); color: var(--primary-hover); font-weight: 600; }
@@ -954,6 +967,7 @@ app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1)
 .tabs button:hover { color: var(--text); }
 .tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
 .tabs + .comments, .tabs + .history { margin-top: var(--space-1); }
+.tabs + [role="tabpanel"] { margin-top: var(--space-4); }
 .comment-compose { display: flex; gap: var(--space-2); align-items: flex-start; }
 .history-row { display: flex; gap: var(--space-2); align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .change { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; margin-left: var(--space-1); }

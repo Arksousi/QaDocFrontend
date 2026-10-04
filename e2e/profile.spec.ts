@@ -19,8 +19,8 @@ test.describe('Account menu and profile', () => {
 
     await expect(menu.getByRole('group', { name: 'Go to' })).toBeVisible();
     await expect(menu.getByRole('group', { name: 'Account' })).toBeVisible();
-    // A Leader: dashboards yes, user management no.
-    await expect(menu.getByRole('menuitem', { name: 'Leader Dashboard' })).toBeVisible();
+    // A Leader: the merged Dashboard yes, user management no.
+    await expect(menu.getByRole('menuitem', { name: 'Dashboard' })).toBeVisible();
     await expect(menu.getByRole('group', { name: 'Admin' })).toHaveCount(0);
     // On a project's tickets, "Projects" is where you are.
     await expect(menu.getByRole('menuitem', { name: 'Projects' })).toHaveClass(/active/);

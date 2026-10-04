@@ -97,6 +97,27 @@ export const MEMBERS = [
 /** An active account outside the project, offered to a manager as "Add to project as Contributor". */
 export const OUTSIDER = person(11, 'Noor Saleh', 0, 5);
 
+/** One project's scoreboard, for the Dashboard's Leader tab. */
+export const SCOREBOARD = [
+  {
+    ...PROJECT,
+    myRole: 'Manager' as const,
+    members: MEMBERS.map((m) => ({
+      userId: m.userId,
+      displayName: m.displayName,
+      role: 'Contributor' as const,
+      isActive: true,
+      assigned: 5,
+      closed: 2,
+      openTickets: m.openTickets,
+      ticketLimit: m.ticketLimit,
+    })),
+  },
+];
+
+/** Everyone's load across projects, for the Dashboard's Users tab. */
+export const WORKLOAD = MEMBERS.map((m) => ({ ...m, role: 'Developer' as const }));
+
 /** An empty folder beside the seeded one, so a manager may delete it. */
 export const EMPTY_FOLDER = { ...FOLDER, folderId: 11, folderName: 'Archive', folderCode: 'ARC', ticketCount: 0, openTicketCount: 0 };
 
@@ -173,12 +194,34 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
     }
     if (path === '/users/avatars') return json(hasAvatar ? [{ userId: user.userId, version: avatarVersion }] : []);
 
+    // --- top-bar global search: matches title or key, over the seeded tickets ---
+    if (path === '/tickets/search') {
+      const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+      return json(
+        q.length < 2
+          ? []
+          : TICKETS.filter((t) => t.title.toLowerCase().includes(q) || t.ticketKey.toLowerCase().includes(q))
+              .map((t) => ({
+                ticketId: t.ticketId,
+                projectId: t.projectId,
+                projectName: PROJECT.projectName,
+                ticketKey: t.ticketKey,
+                title: t.title,
+                state: t.state,
+                ticketType: t.ticketType,
+                activityDate: t.activityDate,
+              })),
+      );
+    }
+
     // --- projects ---
     if (path === '/projects' || path === '/projects/recent') return json([project]);
     if (path === '/projects/1') return json(project);
     if (path === '/projects/1/folders') return json(editor ? [FOLDER, EMPTY_FOLDER] : [FOLDER]);
     if (path === '/projects/1/suggestions') return json({ tags: TAGS });
     if (path === '/projects/1/assignees') return json(editor ? MEMBERS : []);
+    if (path === '/projects/scoreboard') return json(SCOREBOARD);
+    if (path === '/users/workload') return json(WORKLOAD);
     if (path === '/users/options') return json([...MEMBERS, OUTSIDER]);
     if (path === '/notifications/unread-count') return json({ count: 0 });
     if (path === '/notifications') return json([]);

@@ -3,7 +3,6 @@ import { AuthService } from '../../core/auth.service';
 import { ApiService } from '../../core/api.service';
 import { UserWorkload, avatarTone, initials, loadLabel, overLimit } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
-import { Topbar } from '../../shared/topbar';
 import { Avatar } from '../../shared/avatar';
 
 interface WorkloadRow extends UserWorkload {
@@ -22,22 +21,15 @@ interface WorkloadRow extends UserWorkload {
  */
 @Component({
   selector: 'app-users-dashboard',
-  imports: [Avatar, Topbar],
+  imports: [Avatar],
   template: `
-    <app-topbar crumb="Users Dashboard" />
+    <!-- Embedded by the Dashboard page (Users tab), which owns the topbar, heading and tabs. -->
+    <p class="muted">
+      Unfinished tickets each person holds across all projects, against their limit.
+      @if (!loading()) { {{ fullCount() }} of {{ rows().length }} at or over their limit. }
+    </p>
 
-    <main class="page">
-      <div class="page-header">
-        <div>
-          <h1>Users Dashboard</h1>
-          <p class="muted">
-            Unfinished tickets each person holds across all projects, against their limit.
-            @if (!loading()) { {{ fullCount() }} of {{ rows().length }} at or over their limit. }
-          </p>
-        </div>
-      </div>
-
-      <section class="card">
+    <section class="card">
         @if (loading()) {
           <p class="muted pad" role="status">Loading…</p>
         } @else {
@@ -94,7 +86,6 @@ interface WorkloadRow extends UserWorkload {
           </div>
         }
       </section>
-    </main>
   `,
 })
 export class UsersDashboardPage implements OnInit {

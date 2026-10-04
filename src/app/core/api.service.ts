@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { quiet } from './toast.service';
-import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, User, UserCard, UserOption, UserWorkload } from './models';
+import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, TicketSearchResult, User, UserCard, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -86,6 +86,9 @@ export class ApiService {
 
   // Tickets
   ticket = (id: number) => firstValueFrom(this.http.get<Ticket>(`${this.base}/tickets/${id}`));
+  /** Top-bar global search across every project the caller can see; the API wants 2+ characters. */
+  searchTickets = (q: string) =>
+    firstValueFrom(this.http.get<TicketSearchResult[]>(`${this.base}/tickets/search`, { params: { q } }));
   createTicket = (t: SaveTicket) => firstValueFrom(this.http.post<Created>(`${this.base}/tickets`, t));
   updateTicket = (id: number, t: SaveTicket) => firstValueFrom(this.http.put<void>(`${this.base}/tickets/${id}`, t));
   deleteTicket = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/tickets/${id}`));
