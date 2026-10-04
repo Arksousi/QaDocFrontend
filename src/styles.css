@@ -866,7 +866,7 @@ app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1)
 
 /* ---------- User menu ---------- */
 .user-menu { position: relative; }
-.user-button { display: flex; align-items: center; gap: var(--space-2); border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); cursor: pointer; padding: 3px var(--space-2) 3px 3px; border-radius: var(--radius-pill); transition: background var(--ease); }
+.user-button { display: flex; align-items: center; gap: var(--space-2); border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); cursor: pointer; padding: 3px var(--space-2) 3px 3px; border-radius: var(--radius); transition: background var(--ease); }
 .user-button:hover, .user-button[aria-expanded="true"] { background: var(--neutral-100); }
 .user-button .icon-caret { color: var(--muted); }
 .user-name { font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

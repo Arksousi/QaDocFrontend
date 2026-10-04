@@ -20,11 +20,11 @@ import { Avatar } from './avatar';
       <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc">
         <img class="brand-logo" src="logo-mark.svg" alt="" />
       </a>
-      <!-- A way back that names where you are: the project's own name on a project page. -->
+      <!-- A quiet way back to the project list; the page below says what you are looking at. -->
       @if (crumb()) {
         <a class="back-link" routerLink="/">
           <app-icon name="back" />
-          <span>{{ crumb() }}</span>
+          <span>Projects</span>
         </a>
       }
       <!-- Order: search, the page's own action (Create ticket), notifications, then who you are. -->
