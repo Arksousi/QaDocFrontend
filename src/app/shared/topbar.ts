@@ -15,21 +15,20 @@ import { Avatar } from './avatar';
   imports: [Avatar, RouterLink, ChangePassword, Icon, NotificationBell],
   template: `
     <header class="topbar">
-      <!-- Mark plus the name as real text: the full lockup's wordmark is unreadable at bar size. -->
+      <!-- The mark stays as the way home; the "QaDoc" word is what's gone — the page below
+           says what you are looking at, so the bar carries the picture, not the name. -->
       <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc">
         <img class="brand-logo" src="logo-mark.svg" alt="" />
-        <span class="brand-name">QaDoc</span>
       </a>
-      <!-- Only a way back. The page below states what you are looking at, once, in full size —
-           repeating it up here is what made this bar look cluttered. -->
+      <!-- A way back that names where you are: the project's own name on a project page. -->
       @if (crumb()) {
         <a class="back-link" routerLink="/">
           <app-icon name="back" />
-          <span>Projects</span>
+          <span>{{ crumb() }}</span>
         </a>
       }
+      <!-- Order: search, the page's own action (Create ticket), notifications, then who you are. -->
       <div class="topbar-actions">
-        <ng-content />
         @if (auth.user()) {
           <!-- Global search across every project this account can see; two characters start it. -->
           <div class="topbar-search">
@@ -55,6 +54,7 @@ import { Avatar } from './avatar';
             }
           </div>
         }
+        <ng-content />
         @if (auth.user() && !auth.isGuest()) {
           <app-notification-bell />
         }

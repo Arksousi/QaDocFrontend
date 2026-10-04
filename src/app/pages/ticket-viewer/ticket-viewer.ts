@@ -183,8 +183,11 @@ const summarise = (picked: string[], plural: string) =>
           <label class="check">
             <input type="checkbox" [ngModel]="mine()" (ngModelChange)="mine.set($event)" /> Assigned to me
           </label>
-          @if (hasFilters()) {
-            <button class="btn btn-ghost btn-sm" (click)="clearFilters()">{{ onlyMine() ? 'Show all tickets' : 'Clear filters' }}</button>
+          <!-- No "Show all tickets" beside the checkbox: the empty screen below already offers it,
+               and a button that undoes the ticked box right next to the box is noise. Other filters
+               still get their "Clear filters" here. -->
+          @if (hasFilters() && !onlyMine()) {
+            <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear filters</button>
           }
           <span class="muted small push-left">{{ tickets().length }} {{ tickets().length === 1 ? 'ticket' : 'tickets' }}</span>
         </div>
@@ -413,7 +416,7 @@ export class TicketViewerPage {
     !!this.search() || this.state().length > 0 || this.type().length > 0 || this.tag().length > 0 || this.mine());
   readonly sortKey = signal<SortKey>('activityDate');
   readonly sortAsc = signal(false);
-  /** Only "Assigned to me" is on: the button and the empty screen then offer "Show all tickets". */
+  /** Only "Assigned to me" is on: the toolbar keeps quiet, and the empty screen offers "Show all tickets". */
   readonly onlyMine = computed(() =>
     this.mine() && !this.search() && !this.state().length && !this.type().length && !this.tag().length);
   /** The one state the chips have narrowed to, if exactly one is ticked. */

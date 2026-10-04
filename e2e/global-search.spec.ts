@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { continueAsGuest, mockApi } from './helpers';
+import { continueAsGuest, mockApi, openProject } from './helpers';
 
 /** The top-bar search box: type, get hits from any project, click through to the ticket. */
 test.describe('Global search', () => {
@@ -36,6 +36,32 @@ test.describe('Global search', () => {
 
     await box.fill('zzzznothing');
     await expect(page.getByText(/No tickets match/)).toBeVisible();
+  });
+
+  test('runs left to right: logo, project name, space, search, create ticket, bell, user', async ({ page }) => {
+    await mockApi(page, { editor: true });
+    await openProject(page); // a page below Projects, so the back control carries the project name
+
+    // The mark (the picture) stays; the "QaDoc" word next to it is what's gone.
+    await expect(page.locator('.brand img')).toBeVisible();
+    await expect(page.locator('.topbar')).not.toContainText('QaDoc');
+    await expect(page.locator('.back-link')).toContainText('Restaurant Management System');
+
+    const brand = (await page.locator('.brand').boundingBox())!;
+    const back = (await page.locator('.back-link').boundingBox())!;
+    const search = (await page.getByLabel('Search all projects').boundingBox())!;
+    const create = (await page.getByRole('button', { name: 'Create ticket' }).boundingBox())!;
+    const bell = (await page.locator('app-notification-bell').boundingBox())!;
+    const user = (await page.locator('.user-button').boundingBox())!;
+
+    // Each element starts after the previous one ends…
+    expect(brand.x).toBeLessThan(back.x);
+    expect(back.x + back.width).toBeLessThan(search.x);
+    expect(search.x + search.width).toBeLessThanOrEqual(create.x + 4);
+    expect(create.x + create.width).toBeLessThanOrEqual(bell.x + 4);
+    expect(bell.x + bell.width).toBeLessThanOrEqual(user.x + 4);
+    // …with a real gap — the space — between the left group and the search bar.
+    expect(search.x - (back.x + back.width)).toBeGreaterThan(40);
   });
 
   test('Esc closes the results but keeps what was typed', async ({ page }) => {

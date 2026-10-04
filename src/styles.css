@@ -177,12 +177,11 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); o
   background: var(--surface); border-bottom: 1px solid var(--border);
   padding: var(--space-2) var(--space-6); position: sticky; top: 0; z-index: 10;
 }
+/* The mark only — the wordmark next to it is gone. A 64px mark in a bar with 10px padding was
+   too much logo; this is the quiet 26px picture that still links home. */
 .brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 700; font-size: 17px; color: var(--text); text-decoration: none !important; }
 .brand:hover { text-decoration: none; }
-/* A 64px mark in a bar with 10px padding made the navigation 84px of mostly logo, on every page,
-   above content that had to fight it for the top of the screen. The bar is chrome. */
 .brand-logo { display: block; height: 26px; width: auto; }
-.brand-name { letter-spacing: -.2px; }
 /* One quiet control in the bar: a way back, nothing competing with the page title below. */
 .back-link {
   display: inline-flex; align-items: center; gap: 7px; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
@@ -887,9 +886,12 @@ app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1)
 .menu-group + .menu-group, .account-menu > a + .menu-group { border-top: 1px solid var(--border); margin-top: var(--space-1); padding-top: var(--space-1); }
 .menu-label { padding: var(--space-1) var(--space-2) 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--muted); }
 
-/* Top-bar global search: an input with a results dropdown that reuses .menu's chrome. */
-.topbar-search { position: relative; display: flex; align-items: center; gap: var(--space-1); color: var(--muted); }
-.topbar-search input { width: 230px; padding: var(--space-1) var(--space-2); font-size: var(--fs-sm); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+/* Top-bar global search, first in the action group: drawn like the app's other search fields
+   (.search-wrap) — the magnifier inside the input, the input's own theme styling, and a results
+   dropdown that reuses .menu's chrome. */
+.topbar-search { position: relative; display: flex; align-items: center; }
+.topbar-search .icon-search { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.topbar-search input { width: 280px; padding-left: 30px; }
 .search-results { right: auto; left: 0; min-width: 100%; width: min(420px, 80vw); max-height: 60vh; overflow-y: auto; }
 .search-hit { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .search-hit .id-chip { align-self: center; flex: none; }
@@ -897,7 +899,7 @@ app-assignee-picker { display: flex; flex-direction: column; gap: var(--space-1)
 .search-hit .hit-project { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-empty { padding: var(--space-2); margin: 0; }
 @media (max-width: 560px) {
-  .topbar-search input { width: 130px; }
+  .topbar-search input { width: 150px; }
 }
 .account-menu a, .account-menu button { display: flex; align-items: center; gap: var(--space-2); }
 .account-menu a .icon, .account-menu button .icon { color: var(--muted); transition: color var(--ease); }

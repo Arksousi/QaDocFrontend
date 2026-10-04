@@ -4,7 +4,7 @@ import { mockApi, openProject } from './helpers';
 /**
  * The ticket list as someone who can edit: the state chips, the priority column, the quick state
  * change from a row, and the small wording fixes (this project's key in the search hint, "1 ticket",
- * "Show all tickets", open/total folder counts).
+ * no "Show all tickets" beside the checkbox, open/total folder counts).
  */
 test.describe('Ticket list', () => {
   test('the search hint, counts and folder totals use this project', async ({ page }) => {
@@ -13,8 +13,9 @@ test.describe('Ticket list', () => {
 
     await expect(page.getByLabel('Search tickets')).toHaveAttribute('placeholder', 'Search… e.g. RMS-V1-0001');
     await expect(page.getByText('3 tickets', { exact: true })).toBeVisible();
-    // Only "Assigned to me" is on, so the button says what clicking it does.
-    await expect(page.getByRole('button', { name: 'Show all tickets' })).toBeVisible();
+    // Only "Assigned to me" is on: the toolbar button that offered to undo the ticked box is gone
+    // (the empty screen's "Show all tickets" is a different button, kept).
+    await expect(page.getByRole('button', { name: 'Show all tickets' })).toHaveCount(0);
     // "open/total" per folder; the empty one reads 0/0.
     await expect(page.getByRole('button', { name: /All tickets\s*2\s*\/\s*3/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /Archive\s*0\s*\/\s*0/ })).toBeVisible();
