@@ -35,8 +35,22 @@ export interface World {
   otherTicketId: number;
   folderId: number;
   ticketId: number;
+  /** A test suite (with one screenshot) in projectId, for the Test Case Generator rules. */
+  suiteId: number;
+  /** One test case inside that suite, already imported as Draft. */
+  caseId: number;
+  /** A QC docset (with logo and one screen) in projectId, for the QC Generator rules. */
+  docSetId: number;
+  /** One QC document inside that docset, already imported as Draft. */
+  docId: number;
   userIds: Record<string, number>;
 }
+
+/** A real 1×1 PNG: the API judges a picture by its bytes, not by the declared type. */
+export const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+);
 
 /**
  * An authenticated (or anonymous) API client for one actor.
@@ -174,6 +188,58 @@ export async function buildWorld(): Promise<World> {
   });
   const otherTicketId = (await otherTicket.json()).id as number;
 
+  // --- a test suite to read, and one case inside it --------------------------
+  const suiteResponse = await admin.post(`/projects/${projectId}/testsuites`, {
+    multipart: {
+      title: 'Authorization fixture suite',
+      description: 'Screenshots of the checkout, for the test case rules.',
+      images: { name: 'screen.png', mimeType: 'image/png', buffer: PNG },
+    },
+  });
+  if (!suiteResponse.ok()) throw new Error(`Could not create a test suite: ${suiteResponse.status()}`);
+  const suiteId = (await suiteResponse.json()).id as number;
+
+  const imported = await admin.post(`/testsuites/${suiteId}/import`, {
+    data: {
+      json: JSON.stringify({
+        testCases: [{
+          title: 'Fixture case: the total is shown before paying',
+          category: 'Functional',
+          priority: 2,
+          preconditions: 'A cart with one item',
+          steps: ['Open the cart', 'Press Checkout'],
+          expected: 'The total including tax is shown.',
+        }],
+      }),
+    },
+  });
+  if (!imported.ok()) throw new Error(`Could not import a test case: ${imported.status()}`);
+  const caseId = ((await imported.json())[0] as { testCaseId: number }).testCaseId;
+
+  // --- a QC docset and document --------------------------------------------
+  const docSetResponse = await admin.post(`/projects/${projectId}/qc/docsets`, {
+    multipart: {
+      title: 'Authorization fixture docset',
+      appName: 'AuthzApp',
+      businessDescription: 'App documentation fixtures',
+      language: 'English',
+      logo: { name: 'logo.png', mimeType: 'image/png', buffer: PNG },
+      screens: { name: 'screen1.png', mimeType: 'image/png', buffer: PNG },
+      captions: 'Screen 1',
+    },
+  });
+  if (!docSetResponse.ok()) throw new Error(`Could not create a QC doc set: ${docSetResponse.status()}`);
+  const docSetId = (await docSetResponse.json()).id as number;
+
+  const docImported = await admin.post(`/qc/docsets/${docSetId}/import`, {
+    data: {
+      kind: 'Documentation',
+      markdown: '# Product Documentation\n\nFixture documentation content.',
+    },
+  });
+  if (!docImported.ok()) throw new Error(`Could not import QC document: ${docImported.status()}`);
+  const docId = ((await docImported.json()) as { documentId: number }).documentId;
+
   // --- tokens --------------------------------------------------------------
   const guest = await anon.post('/auth/guest', { data: {} });
 
@@ -192,6 +258,10 @@ export async function buildWorld(): Promise<World> {
     otherTicketId,
     folderId,
     ticketId,
+    suiteId,
+    caseId,
+    docSetId,
+    docId,
     userIds,
   };
 }

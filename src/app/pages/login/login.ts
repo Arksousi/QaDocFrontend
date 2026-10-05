@@ -14,7 +14,7 @@ import { PeekPassword } from '../../shared/peek-password';
          real (visually hidden) labels, so screen readers and getByLabel still find each box. -->
     <main class="auth-page">
       <section class="auth-art">
-        <img class="auth-logo" src="logo.svg" alt="QaDoc — QA Documentation" />
+        <img class="auth-logo" src="logo-titled.png" alt="Q Desk" />
       </section>
 
       <section class="auth-panel">
@@ -49,7 +49,7 @@ import { PeekPassword } from '../../shared/peek-password';
             </form>
           } @else {
             <h1>Sign in</h1>
-            <p class="auth-sub">Welcome back to QaDoc.</p>
+            <p class="auth-sub">Welcome back to Q Desk.</p>
             <form class="form" (ngSubmit)="signIn()">
               <label class="auth-field"><span class="sr-only">Username</span>
                 <app-icon name="user" />
@@ -67,7 +67,7 @@ import { PeekPassword } from '../../shared/peek-password';
             </button>
             <p class="muted small auth-help">
               A guest tours sample projects and can't change anything.<br />
-              No account? Ask your QaDoc Admin to create one.
+              No account? Ask your Q Desk Admin to create one.
             </p>
           }
         </div>
@@ -114,9 +114,10 @@ export class LoginPage implements OnInit {
     this.busy.set(true);
     try {
       await this.auth.continueAsGuest();
-      // Always the project list: a returnUrl from an expired session may point somewhere
-      // a guest cannot go, which would bounce straight back here.
-      this.router.navigateByUrl('/');
+      // The launcher, unless a deep link brought them here: a shareable ticket link must still
+      // open that ticket, whichever way the visitor signed in. A guard that refuses the target
+      // now sends the guest to the launcher rather than back to this page.
+      this.goOn();
     } finally {
       this.busy.set(false);
     }
@@ -138,7 +139,10 @@ export class LoginPage implements OnInit {
 
   private goOn() {
     const target = this.returnUrl();
-    // Only follow in-app paths.
-    this.router.navigateByUrl(target && target.startsWith('/') && !target.startsWith('//') ? target : '/');
+    // A deep link (a shared ticket, say) is followed straight to its page and skips the launcher;
+    // signing in from the sign-in page itself lands on the launcher, where the two apps are chosen.
+    // Only in-app paths are followed.
+    const deepLink = target && target.startsWith('/') && !target.startsWith('//') ? target : null;
+    this.router.navigateByUrl(deepLink ?? '/home');
   }
 }

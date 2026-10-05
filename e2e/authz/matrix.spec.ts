@@ -1,5 +1,5 @@
 import { APIRequestContext, expect, test } from '@playwright/test';
-import { ACTORS, Actor, World, buildWorld, clientFor } from './actors';
+import { ACTORS, Actor, PNG, World, buildWorld, clientFor } from './actors';
 
 /**
  * The authorization matrix: every actor against every protected endpoint, asserting the
@@ -242,6 +242,140 @@ const CASES: Case[] = [
     // Any member may comment, including a Viewer — commenting is not editing. 200, not 201: the
     // endpoint answers with the saved comment itself (Ok(comment)) rather than a Created pointer.
     expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+
+  // ---------- Test Case Generator ----------
+  {
+    name: 'GET /projects/{id}/testsuites hides a project you do not belong to',
+    method: 'get',
+    path: (w) => `/projects/${w.projectId}/testsuites`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'GET /testsuites/{id} hides a suite you cannot see',
+    method: 'get',
+    path: (w) => `/testsuites/${w.suiteId}`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'GET /testsuites/{id}/prompt is readable by every member: it is the manual route',
+    method: 'get',
+    path: (w) => `/testsuites/${w.suiteId}/prompt`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'POST /testsuites/{id}/import needs Contributor and refuses a guest before it parses',
+    method: 'post',
+    path: (w) => `/testsuites/${w.suiteId}/import`,
+    // Deliberately unparseable: a 400 proves the actor got as far as the parser (nothing is
+    // saved), where a 403/404 proves the request stopped at the permission check.
+    body: () => ({ json: 'not JSON, on purpose' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 400, manager: 400, admin: 400 },
+  },
+  {
+    name: 'POST /testsuites/{id}/generate needs Contributor',
+    method: 'post',
+    path: (w) => `/testsuites/${w.suiteId}/generate`,
+    body: () => ({}),
+    // Answered by the Mock provider (run-authz-tests.ps1 sets TestCaseGenerator__Provider),
+    // so this row proves permissions without a real AI call or a real key.
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'PUT /testcases/{id} needs Contributor',
+    method: 'put',
+    path: (w) => `/testcases/${w.caseId}`,
+    body: () => ({ title: 'Renamed by the authorization matrix' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 204, manager: 204, admin: 204 },
+  },
+  {
+    name: 'POST /testcases/{id}/create-ticket is refused before it reaches ticket creation',
+    method: 'post',
+    path: (w) => `/testcases/${w.caseId}/create-ticket`,
+    body: () => ({}),
+    // contributor/manager/admin are left out: the first one through would link the fixture
+    // case to a ticket and the rest would answer 409. The allow side has its own test below.
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN },
+  },
+  {
+    name: 'DELETE /testcases/{id} is refused before it reaches the delete',
+    method: 'delete',
+    path: (w) => `/testcases/${w.caseId}`,
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN },
+  },
+  {
+    name: 'DELETE /testsuites/{id} is refused before it reaches the delete',
+    method: 'delete',
+    path: (w) => `/testsuites/${w.suiteId}`,
+    // A Contributor who did not create the suite cannot delete it; only the owner or a manager
+    // can. manager and admin would eat the fixture, so the allow side is a separate test.
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN },
+  },
+
+  // ---------- QC Generator surface ----------
+  {
+    name: 'GET /projects/{id}/qc/docsets is readable by every member',
+    method: 'get',
+    path: (w) => `/projects/${w.projectId}/qc/docsets`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'GET /qc/docsets/{id} hides a docset you cannot see',
+    method: 'get',
+    path: (w) => `/qc/docsets/${w.docSetId}`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'GET /qc/docsets/{id}/prompt is readable by every member: it is the manual route',
+    method: 'get',
+    path: (w) => `/qc/docsets/${w.docSetId}/prompt?kind=Documentation`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'POST /qc/docsets/{id}/import needs Contributor and refuses a guest',
+    method: 'post',
+    path: (w) => `/qc/docsets/${w.docSetId}/import`,
+    body: () => ({ kind: 'Documentation', markdown: '# Updated by matrix' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'POST /qc/docsets/{id}/generate needs Contributor',
+    method: 'post',
+    path: (w) => `/qc/docsets/${w.docSetId}/generate`,
+    body: () => ({ kind: 'Documentation' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'PUT /qc/docsets/{id} needs Contributor',
+    method: 'put',
+    path: (w) => `/qc/docsets/${w.docSetId}`,
+    body: () => ({ title: 'Renamed by authorization matrix' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 204, manager: 204, admin: 204 },
+  },
+  {
+    name: 'GET /qc/documents/{id} is readable by every member',
+    method: 'get',
+    path: (w) => `/qc/documents/${w.docId}`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'PUT /qc/documents/{id} needs Contributor',
+    method: 'put',
+    path: (w) => `/qc/documents/${w.docId}`,
+    body: () => ({ markdown: '# Edited by authorization matrix' }),
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: 204, manager: 204, admin: 204 },
+  },
+  {
+    name: 'GET /qc/documents/{id}/export is readable by every member',
+    method: 'get',
+    path: (w) => `/qc/documents/${w.docId}/export?format=docx`,
+    expected: { anonymous: UNAUTHENTICATED, guest: HIDDEN, outsider: HIDDEN, viewer: 200, contributor: 200, manager: 200, admin: 200 },
+  },
+  {
+    name: 'DELETE /qc/docsets/{id} is refused before it reaches the delete',
+    method: 'delete',
+    path: (w) => `/qc/docsets/${w.docSetId}`,
+    expected: { anonymous: UNAUTHENTICATED, guest: FORBIDDEN, outsider: HIDDEN, viewer: FORBIDDEN, contributor: FORBIDDEN },
   },
 
   // ---------- destructive: denial only ----------
@@ -634,6 +768,105 @@ test.describe('Mentions in comments', () => {
     // The mention survives a reload of the ticket, so the app can keep highlighting it.
     const ticket: { comments: { mentions: { userId: number }[] }[] } = await (await clients.get('admin')!.get(`/tickets/${id}`)).json();
     expect(ticket.comments[0].mentions.map((m) => m.userId)).toEqual([u['manager']]);
+  });
+});
+
+test.describe('Test Case Generator', () => {
+  // Creating a suite is multipart, which the row table cannot express, so it lives here.
+  const newSuite = () => ({
+    multipart: {
+      title: `Should never exist ${Date.now()}`,
+      description: '',
+      images: { name: 'screen.png', mimeType: 'image/png', buffer: PNG },
+    },
+  });
+  const oneCase = () => ({
+    json: JSON.stringify({
+      testCases: [{
+        title: 'A case made by the matrix', category: 'Functional', priority: 3,
+        preconditions: '', steps: ['Do the thing'], expected: 'The thing is done.',
+      }],
+    }),
+  });
+
+  test('creating a suite needs Contributor, and a project you cannot see looks missing', async () => {
+    expect((await clients.get('guest')!.post(`/projects/${world.projectId}/testsuites`, newSuite())).status()).toBe(FORBIDDEN);
+    expect((await clients.get('viewer')!.post(`/projects/${world.projectId}/testsuites`, newSuite())).status()).toBe(FORBIDDEN);
+    expect((await clients.get('outsider')!.post(`/projects/${world.projectId}/testsuites`, newSuite())).status()).toBe(HIDDEN);
+    expect((await clients.get('contributor')!.post(`/projects/${world.projectId}/testsuites`, newSuite())).status()).toBe(201);
+  });
+
+  test('a screenshot is judged by its bytes, not by its name', async () => {
+    const response = await clients.get('contributor')!.post(`/projects/${world.projectId}/testsuites`, {
+      multipart: {
+        title: 'A GIF pretending to be a screenshot',
+        description: '',
+        images: { name: 'screen.png', mimeType: 'image/png', buffer: Buffer.from('not a picture at all') },
+      },
+    });
+    expect(response.status()).toBe(400);
+    expect((await response.text()).toLowerCase()).toContain('png, jpeg or webp');
+  });
+
+  test('a Failed case becomes exactly one ticket, linked both ways', async () => {
+    const admin = clients.get('admin')!;
+    const imported = await admin.post(`/testsuites/${world.suiteId}/import`, { data: oneCase() });
+    expect(imported.status()).toBe(200);
+    const caseId = ((await imported.json())[0] as { testCaseId: number }).testCaseId;
+
+    expect((await admin.put(`/testcases/${caseId}`, { data: { status: 'Failed' } })).status()).toBe(204);
+
+    const first = await admin.post(`/testcases/${caseId}/create-ticket`, { data: {} });
+    expect(first.status()).toBe(200);
+    const { id: ticketId, ticketKey } = await first.json();
+    expect(ticketKey).toMatch(/-\d{4}$/);
+
+    // Asking again must not mint a second ticket.
+    expect((await admin.post(`/testcases/${caseId}/create-ticket`, { data: {} })).status()).toBe(409);
+
+    // Both sides point at each other: the ticket is a Bug with the case's steps in it…
+    const loaded: { ticketType: string; description: string; history: { field: string }[] } =
+      await (await admin.get(`/tickets/${ticketId}`)).json();
+    expect(loaded.ticketType).toBe('Bug');
+    expect(loaded.description).toContain('Steps to Reproduce');
+    expect(loaded.description).toContain('A case made by the matrix');
+    expect(loaded.history.some((h) => h.field === 'Created')).toBe(true);
+
+    // …and the case carries the ticket key back.
+    const suite: { cases: { testCaseId: number; linkedTicketKey: string }[] } =
+      await (await admin.get(`/testsuites/${world.suiteId}`)).json();
+    expect(suite.cases.find((c) => c.testCaseId === caseId)?.linkedTicketKey).toBe(ticketKey);
+  });
+
+  test('a suite can be deleted only by its owner or a manager', async () => {
+    const admin = clients.get('admin')!;
+    const created = await admin.post(`/projects/${world.projectId}/testsuites`, newSuite());
+    const { id } = await created.json();
+
+    expect((await clients.get('contributor')!.delete(`/testsuites/${id}`)).status()).toBe(FORBIDDEN);
+    expect((await admin.get(`/testsuites/${id}`)).status()).toBe(200);
+
+    expect((await admin.delete(`/testsuites/${id}`)).status()).toBe(204);
+    expect((await admin.get(`/testsuites/${id}`)).status()).toBe(HIDDEN);
+  });
+
+  test('a docset can be deleted by a manager or admin', async () => {
+    const admin = clients.get('admin')!;
+    const created = await admin.post(`/projects/${world.projectId}/qc/docsets`, {
+      multipart: {
+        title: 'Sacrificial docset',
+        appName: 'Sacrificial',
+        language: 'English',
+        screens: { name: 'screen.png', mimeType: 'image/png', buffer: PNG },
+      },
+    });
+    const { id } = await created.json();
+
+    expect((await clients.get('contributor')!.delete(`/qc/docsets/${id}`)).status()).toBe(FORBIDDEN);
+    expect((await admin.get(`/qc/docsets/${id}`)).status()).toBe(200);
+
+    expect((await admin.delete(`/qc/docsets/${id}`)).status()).toBe(204);
+    expect((await admin.get(`/qc/docsets/${id}`)).status()).toBe(HIDDEN);
   });
 });
 

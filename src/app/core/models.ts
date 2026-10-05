@@ -26,7 +26,7 @@ export type ProjectRole = (typeof PROJECT_ROLES)[number];
 export type ProjectAccess = ProjectRole | 'Manager';
 
 /** What a role lets you do, so the UI can hide what the API would refuse. */
-export function canEditTickets(role: ProjectAccess | null | undefined): boolean {
+export function canEditTickets(role: ProjectAccess | string | null | undefined): boolean {
   return role === 'Contributor' || role === 'Manager';
 }
 
@@ -330,6 +330,144 @@ export function toSaveTicket(t: Ticket): SaveTicket {
 
 export interface Suggestions {
   tags: string[];
+}
+
+// ---------- Test Case Generator ----------
+
+/** The four buckets a test case can be filed under, in the order the table shows them. */
+export const TEST_CATEGORIES = ['Functional', 'Negative', 'Boundary', 'UI'] as const;
+export type TestCaseCategory = (typeof TEST_CATEGORIES)[number];
+
+/**
+ * Screenshots one suite may hold, matching TestCaseGenerator:MaxImages on the server, which is
+ * what actually refuses the upload. The dialog shows it so nobody has to find that out.
+ */
+export const MAX_SUITE_IMAGES = 10;
+
+/** Draft is where every new case lands, however it arrived. */
+export const TEST_STATUSES = ['Draft', 'Approved', 'Passed', 'Failed'] as const;
+export type TestCaseStatus = (typeof TEST_STATUSES)[number];
+
+/** Who wrote the case: a vision model, a pasted import, or a person. */
+export type TestCaseSource = 'Ai' | 'Imported' | 'Manual';
+
+/** One screenshot. The bytes live in attachment storage, so an <img> fetches them through it. */
+export interface TestSuiteScreen {
+  screenId: number;
+  suiteId: number;
+  attachmentId: number;
+  sortOrder: number;
+  contentType: string;
+  byteSize: number;
+}
+
+export interface TestCase {
+  testCaseId: number;
+  suiteId: number;
+  /** Counter within the suite; the number the key is built from. */
+  number: number;
+  caseKey: string;
+  title: string;
+  category: TestCaseCategory;
+  priority: number;
+  preconditions: string;
+  steps: string[];
+  expected: string;
+  status: TestCaseStatus;
+  linkedTicketId: number | null;
+  linkedTicketKey: string | null;
+  source: TestCaseSource;
+  createdAt: string;
+}
+
+/** A suite of screenshots and the cases drawn from them. The detail response fills screens and cases. */
+export interface TestSuite {
+  suiteId: number;
+  projectId: number;
+  folderId: number | null;
+  title: string;
+  businessDescription: string | null;
+  createdByUserId: number | null;
+  createdByName: string | null;
+  createdAt: string;
+  isDemo: boolean;
+  screenCount: number;
+  caseCount: number;
+  projectName: string;
+  projectCode: string;
+  folderName: string;
+  /** What the caller may do in the suite's project, so the UI can hide what they cannot do. */
+  myRole: string | null;
+  screens: TestSuiteScreen[];
+  cases: TestCase[];
+}
+
+// ---------- QC Generator (Product Documentation & User Manual) ----------
+
+export const MAX_QC_DOCSET_IMAGES = 30;
+
+export type QcDocumentKind = 'Documentation' | 'UserManual';
+export type QcDocumentStatus = 'Draft' | 'Approved';
+export type QcDocumentSource = 'Ai' | 'Imported' | 'Manual';
+
+export interface QcDocScreen {
+  screenId: number;
+  id?: number;
+  docSetId: number;
+  sortOrder: number;
+  caption: string | null;
+  attachmentId: number;
+  screenSummary: string | null;
+  contentType: string;
+  byteSize: number;
+}
+
+export interface QcDocument {
+  documentId: number;
+  id?: number;
+  docSetId: number;
+  kind: QcDocumentKind;
+  version: number;
+  markdown: string;
+  status: QcDocumentStatus;
+  source: QcDocumentSource;
+  generatedBy: number | null;
+  generatedByName: string | null;
+  createdAt: string;
+}
+
+export interface QcDocSet {
+  docSetId: number;
+  id?: number;
+  projectId: number;
+  title: string;
+  appName: string;
+  businessDescription: string | null;
+  language: string;
+  logoAttachmentId: number | null;
+  createdBy: number | null;
+  createdByName: string | null;
+  createdAt: string;
+  isDemo: boolean;
+  screenCount: number;
+  documentCount: number;
+  myRole: ProjectAccess | null;
+  projectName: string;
+  projectCode: string;
+  screens: QcDocScreen[];
+  documents: QcDocument[];
+}
+
+export interface QcJobStatus {
+  jobId: string;
+  docSetId: number;
+  kind: QcDocumentKind;
+  status: 'Pending' | 'Running' | 'Completed' | 'Failed';
+  progress: string;
+  currentStep: number;
+  totalSteps: number;
+  error: string | null;
+  documentId: number | null;
 }
 
 /** CSS class suffix for a value, e.g. "In Progress" -> "in-progress". */

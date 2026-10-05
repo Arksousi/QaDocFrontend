@@ -54,7 +54,7 @@ async function toSquare(file: File): Promise<Blob> {
       <div class="page-header">
         <div>
           <h1>Profile</h1>
-          <p class="muted">How you appear to your team across QaDoc.</p>
+          <p class="muted">How you appear to your team across Q Desk.</p>
         </div>
       </div>
 
@@ -210,7 +210,7 @@ export class ProfilePage {
   async removePicture() {
     if (!(await this.confirm.ask({
       title: 'Remove your picture?',
-      message: 'Your initials will show instead, everywhere in QaDoc.',
+      message: 'Your initials will show instead, everywhere in Q Desk.',
       confirmLabel: 'Remove picture',
       tone: 'danger',
     }))) return;

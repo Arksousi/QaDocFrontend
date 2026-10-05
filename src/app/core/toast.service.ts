@@ -24,6 +24,10 @@ export class ToastService {
     this.push('error', message);
   }
 
+  show(message: string, kind: 'success' | 'error' = 'success') {
+    this.push(kind, message);
+  }
+
   dismiss(id: number) {
     this.toasts.update((list) => list.filter((t) => t.id !== id));
   }
@@ -71,7 +75,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 };
 
 function describeError(err: HttpErrorResponse): string {
-  if (err.status === 0) return 'Cannot reach the QaDoc API. Is the backend running on port 5134?';
+  if (err.status === 0) return 'Cannot reach the Q Desk API. Is the backend running on port 5134?';
   if (err.status === 403) return 'Only an Admin can do that.';
   const body = err.error;
   if (body?.errors && Object.keys(body.errors).length) {

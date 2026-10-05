@@ -49,6 +49,21 @@ async function blockWrites(page: Page) {
  * sits at its centre, and the actions cell stops propagation, so the link is the only
  * deterministic target. Both routes reach the same place.
  */
+async function signInAsGuest(page: Page) {
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Continue as a guest' }).click();
+  await expect(page).toHaveURL(/\/home$/);
+  await page.getByRole('link', { name: 'Open Q Desk, the ticket tracker' }).click();
+  await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+}
+
+/**
+ * Opens the first project from the "All projects" table.
+ *
+ * Clicks the project-name link rather than the row: a row click lands on whatever cell
+ * sits at its centre, and the actions cell stops propagation, so the link is the only
+ * deterministic target. Both routes reach the same place.
+ */
 async function openFirstProject(page: Page) {
   await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
   await page.locator('table.table tbody tr').first().getByRole('link').first().click();
@@ -84,10 +99,7 @@ test.describe('Deployed app — read-only smoke', () => {
   test('the guest tour opens and lists sample projects', async ({ page }) => {
     const guard = await blockWrites(page);
 
-    await page.goto('/login');
-    await page.getByRole('button', { name: 'Continue as a guest' }).click();
-
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await signInAsGuest(page);
 
     // Shape, not count: at least one project, whatever the tour holds today.
     const rows = page.locator('table.table tbody tr');
@@ -99,9 +111,7 @@ test.describe('Deployed app — read-only smoke', () => {
   test('a guest can open a project and see its ticket list', async ({ page }) => {
     const guard = await blockWrites(page);
 
-    await page.goto('/login');
-    await page.getByRole('button', { name: 'Continue as a guest' }).click();
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await signInAsGuest(page);
 
     await openFirstProject(page);
 
@@ -117,8 +127,7 @@ test.describe('Deployed app — read-only smoke', () => {
   test('filtering by state round-trips to the real API', async ({ page }) => {
     const guard = await blockWrites(page);
 
-    await page.goto('/login');
-    await page.getByRole('button', { name: 'Continue as a guest' }).click();
+    await signInAsGuest(page);
     await openFirstProject(page);
     await expect(page.getByLabel('Search tickets')).toBeVisible();
 
@@ -146,8 +155,7 @@ test.describe('Deployed app — read-only smoke', () => {
   test('a guest cannot see the create-ticket button', async ({ page }) => {
     const guard = await blockWrites(page);
 
-    await page.goto('/login');
-    await page.getByRole('button', { name: 'Continue as a guest' }).click();
+    await signInAsGuest(page);
     await openFirstProject(page);
     await expect(page.getByLabel('Search tickets')).toBeVisible();
 
@@ -171,9 +179,7 @@ test.describe('Deployed app — read-only smoke', () => {
     });
     page.on('pageerror', (error) => errors.push(String(error)));
 
-    await page.goto('/login');
-    await page.getByRole('button', { name: 'Continue as a guest' }).click();
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await signInAsGuest(page);
     await openFirstProject(page);
     await expect(page.getByLabel('Search tickets')).toBeVisible();
 

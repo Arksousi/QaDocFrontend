@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { quiet } from './toast.service';
-import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, Role, SaveTicket, Suggestions, Ticket, TicketComment, TicketSearchResult, User, UserCard, UserOption, UserWorkload } from './models';
+import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, QcDocScreen, QcDocSet, QcDocument, QcJobStatus, Role, SaveTicket, Suggestions, TestCase, TestSuite, Ticket, TicketComment, TicketSearchResult, User, UserCard, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -149,4 +149,128 @@ export class ApiService {
     firstValueFrom(this.http.put<void>(`${this.base}/users/${id}/ticket-limit`, { ticketLimit }));
   resetPassword = (id: number, newPassword: string) =>
     firstValueFrom(this.http.post<void>(`${this.base}/users/${id}/reset-password`, { newPassword }));
+
+  // Test Case Generator
+  testSuites = (projectId: number) =>
+    firstValueFrom(this.http.get<TestSuite[]>(`${this.base}/projects/${projectId}/testsuites`));
+  testSuite = (id: number) => firstValueFrom(this.http.get<TestSuite>(`${this.base}/testsuites/${id}`));
+  /** Multipart: title, description, then one "images" part per screenshot. */
+  createTestSuite = (projectId: number, title: string, description: string, images: File[]) => {
+    const body = new FormData();
+    body.append('title', title);
+    body.append('description', description);
+    for (const image of images) body.append('images', image);
+    return firstValueFrom(this.http.post<Created>(`${this.base}/projects/${projectId}/testsuites`, body));
+  };
+  deleteTestSuite = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/testsuites/${id}`));
+  /** Calls the configured provider and saves the reply as Draft. */
+  generateTestCases = (id: number, options: GenerateCasesOptions = {}) =>
+    firstValueFrom(this.http.post<TestCase[]>(`${this.base}/testsuites/${id}/generate`, options));
+  /** The manual route: JSON pasted from any chat AI, saved as Draft with source Imported. */
+  importTestCases = (id: number, json: string) =>
+    firstValueFrom(this.http.post<TestCase[]>(`${this.base}/testsuites/${id}/import`, { json }));
+  testSuitePrompt = (id: number, maxCases?: number) =>
+    firstValueFrom(
+      this.http.get<{ prompt: string }>(
+        `${this.base}/testsuites/${id}/prompt`,
+        maxCases ? { params: { maxCases } } : {},
+      ),
+    );
+  updateTestCase = (id: number, patch: TestCasePatch) =>
+    firstValueFrom(this.http.put<void>(`${this.base}/testcases/${id}`, patch));
+  deleteTestCase = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/testcases/${id}`));
+  /** Turns a case into a Bug through the ordinary ticket creation path, then links the two. */
+  createTicketFromTestCase = (id: number) =>
+    firstValueFrom(this.http.post<{ id: number; ticketKey: string }>(`${this.base}/testcases/${id}/create-ticket`, {}));
+
+  // QC Generator (Product Documentation & User Manual)
+  qcDocSets = (projectId: number) =>
+    firstValueFrom(this.http.get<QcDocSet[]>(`${this.base}/projects/${projectId}/qc/docsets`));
+  qcDocSet = (id: number) =>
+    firstValueFrom(this.http.get<QcDocSet>(`${this.base}/qc/docsets/${id}`));
+  createQcDocSet = (
+    projectId: number,
+    title: string,
+    appName: string,
+    description: string,
+    language: string,
+    logo: File | null,
+    images: File[],
+    captions: string[],
+  ) => {
+    const body = new FormData();
+    body.append('title', title);
+    body.append('appName', appName);
+    body.append('description', description);
+    body.append('language', language);
+    if (logo) body.append('logo', logo);
+    for (const image of images) body.append('images', image);
+    for (const caption of captions) body.append('captions', caption);
+    return firstValueFrom(this.http.post<Created>(`${this.base}/projects/${projectId}/qc/docsets`, body));
+  };
+  updateQcDocSet = (id: number, data: { title?: string; appName?: string; description?: string; language?: string }, logo?: File | null) => {
+    const body = new FormData();
+    if (data.title != null) body.append('title', data.title);
+    if (data.appName != null) body.append('appName', data.appName);
+    if (data.description != null) body.append('description', data.description);
+    if (data.language != null) body.append('language', data.language);
+    if (logo) body.append('logo', logo);
+    return firstValueFrom(this.http.put<void>(`${this.base}/qc/docsets/${id}`, body));
+  };
+  deleteQcDocSet = (id: number) =>
+    firstValueFrom(this.http.delete<void>(`${this.base}/qc/docsets/${id}`));
+  reorderQcScreens = (id: number, screens: { screenId: number; sortOrder: number; caption?: string | null }[]) =>
+    firstValueFrom(this.http.put<void>(`${this.base}/qc/docsets/${id}/screens/order`, { screens }));
+  addQcScreens = (id: number, images: File[], captions: string[]) => {
+    const body = new FormData();
+    for (const img of images) body.append('images', img);
+    for (const cap of captions) body.append('captions', cap);
+    return firstValueFrom(this.http.post<QcDocScreen[]>(`${this.base}/qc/docsets/${id}/screens`, body));
+  };
+  deleteQcScreen = (docSetId: number, screenId: number) =>
+    firstValueFrom(this.http.delete<void>(`${this.base}/qc/docsets/${docSetId}/screens/${screenId}`));
+  generateQcDocument = (id: number, kind: string, reReadScreens = false) =>
+    firstValueFrom(this.http.post<{ jobId: string }>(`${this.base}/qc/docsets/${id}/generate`, { kind, reReadScreens }));
+  qcJobStatus = (jobId: string) =>
+    firstValueFrom(this.http.get<QcJobStatus>(`${this.base}/qc/jobs/${jobId}`));
+  qcDocument = (id: number) =>
+    firstValueFrom(this.http.get<QcDocument>(`${this.base}/qc/documents/${id}`));
+  updateQcDocument = (id: number, patch: { markdown?: string; status?: string }) =>
+    firstValueFrom(this.http.put<void>(`${this.base}/qc/documents/${id}`, patch));
+  importQcDocument = (id: number, kind: string, markdown: string) =>
+    firstValueFrom(this.http.post<QcDocument>(`${this.base}/qc/docsets/${id}/import`, { kind, markdown }));
+  qcDocSetPrompt = (id: number, kind?: string) =>
+    firstValueFrom(this.http.get<{ prompt: string }>(`${this.base}/qc/docsets/${id}/prompt`, { params: kind ? { kind } : {} }));
+  downloadQcExport = async (id: number, format: 'docx' | 'md' | 'html', appName: string, kind: string, version: number) => {
+    const res = await firstValueFrom(this.http.get(`${this.base}/qc/documents/${id}/export`, {
+      params: { format },
+      responseType: 'blob',
+    }));
+    const url = window.URL.createObjectURL(res);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${appName.toLowerCase().replace(/\s+/g, '_')}_${kind.toLowerCase()}_v${version}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+}
+
+/** What one call to "Generate with AI" may ask for; every field is optional on the server too. */
+export interface GenerateCasesOptions {
+  maxCases?: number;
+  categories?: string[];
+  language?: string;
+}
+
+/** Only the fields PUT /api/testcases/{id} understands; anything left out stays as it is. */
+export interface TestCasePatch {
+  title?: string;
+  category?: string;
+  priority?: number;
+  preconditions?: string;
+  steps?: string[];
+  expected?: string;
+  status?: string;
 }

@@ -11,7 +11,8 @@ export default defineConfig({
 
   // The smoke suite runs against the deployed app with its own config, and must never
   // be picked up by a local run that starts ng serve and mocks the API.
-  testIgnore: '**/smoke/**',
+  // The authz suite runs against a live backend database with npm run authz.
+  testIgnore: ['**/smoke/**', '**/authz/**'],
 
   // Each spec file gets its own worker. Safe here because every test is read-only;
   // the moment a test writes data, revisit this.

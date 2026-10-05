@@ -1,6 +1,6 @@
-import { Component, ElementRef, HostListener, inject, input, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, computed, inject, input, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../core/auth.service';
 import { ApiService } from '../core/api.service';
@@ -12,13 +12,13 @@ import { Avatar } from './avatar';
 
 @Component({
   selector: 'app-topbar',
-  imports: [Avatar, RouterLink, ChangePassword, Icon, NotificationBell],
+  imports: [Avatar, RouterLink, RouterLinkActive, ChangePassword, Icon, NotificationBell],
   template: `
     <header class="topbar">
-      <!-- The mark stays as the way home; the "QaDoc" word is what's gone — the page below
+      <!-- The mark stays as the way home; the "Q Desk" word is what's gone — the page below
            says what you are looking at, so the bar carries the picture, not the name. -->
-      <a class="brand" routerLink="/" aria-label="QaDoc home" title="QaDoc">
-        <img class="brand-logo" src="logo-mark.svg" alt="" />
+      <a class="brand" routerLink="/" aria-label="Q Desk home" title="Q Desk">
+        <img class="brand-logo" src="logo-mark.png" alt="Q Desk" />
       </a>
       <!-- A quiet way back to the project list; the page below says what you are looking at. -->
       @if (crumb()) {
@@ -26,6 +26,28 @@ import { Avatar } from './avatar';
           <app-icon name="back" />
           <span>Projects</span>
         </a>
+      }
+      <!-- The two apps, and the way back to the launcher. Plain links: switching app is a
+           navigation, not a session change, so nobody is ever signed out by using it. -->
+      <nav class="app-switch" aria-label="Switch app">
+        <a class="app-switch-home" routerLink="/home" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="active"
+          aria-label="All apps" title="All apps"><app-icon name="apps" /></a>
+        <a routerLink="/" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="active"
+          aria-label="Q Desk, the ticket tracker" title="Q Desk">
+          <app-icon name="folder" /><span class="app-switch-label">Q Desk</span>
+        </a>
+        <a routerLink="/q" [class.active]="inQGenerator()"
+          aria-label="Q Generator" title="Q Generator">
+          <app-icon name="testcase" /><span class="app-switch-label">Q Generator</span>
+        </a>
+      </nav>
+
+      <!-- Inside Q Generator: secondary tab bar QA | QC -->
+      @if (inQGenerator()) {
+        <nav class="q-tabs" aria-label="Q Generator sections">
+          <a routerLink="/q/qa" routerLinkActive="active" aria-label="QA Generator">QA</a>
+          <a routerLink="/q/qc" routerLinkActive="active" aria-label="QC Generator">QC</a>
+        </nav>
       }
       <!-- Order: search, the page's own action (Create ticket), notifications, then who you are. -->
       <div class="topbar-actions">
@@ -201,6 +223,11 @@ export class Topbar {
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url.split(/[?#]/)[0])),
     { initialValue: this.router.url.split(/[?#]/)[0] },
   );
+
+  readonly inQGenerator = computed(() => {
+    const p = this.path();
+    return p === '/q' || p.startsWith('/q/') || p === '/testcases' || p.startsWith('/testcases/');
+  });
 
   /** Whether the page on screen is this one (or below it, unless exact). */
   isAt(prefix: string, exact = false) {

@@ -121,6 +121,55 @@ export const WORKLOAD = MEMBERS.map((m) => ({ ...m, role: 'Developer' as const }
 /** An empty folder beside the seeded one, so a manager may delete it. */
 export const EMPTY_FOLDER = { ...FOLDER, folderId: 11, folderName: 'Archive', folderCode: 'ARC', ticketCount: 0, openTicketCount: 0 };
 
+/** One screenshot of the suite below; the bytes are served by the attachments mock. */
+export const SCREEN = { screenId: 1, suiteId: 1, attachmentId: 55, sortOrder: 0, contentType: 'image/png', byteSize: 2048 };
+
+/**
+ * A test suite with no cases yet, so a test can watch cases appear. `myRole` follows the signed-in
+ * account, the same way the API fills it: a guest only ever reads.
+ */
+export function suite(myRole: 'Manager' | 'Viewer') {
+  return {
+    suiteId: 1,
+    projectId: PROJECT.projectId,
+    folderId: FOLDER.folderId,
+    title: 'Checkout screens',
+    businessDescription: 'The checkout flow of the shop: cart, address, payment, confirmation.',
+    createdByUserId: 7,
+    createdByName: 'Dana Lee',
+    createdAt: '2026-02-01T09:00:00Z',
+    isDemo: false,
+    screenCount: 1,
+    caseCount: 0,
+    projectName: PROJECT.projectName,
+    projectCode: PROJECT.projectCode,
+    folderName: FOLDER.folderName,
+    myRole,
+    screens: [SCREEN],
+    cases: [],
+  };
+}
+
+/** What the import panel pastes in: a Functional case and a Failed one, ready to become a ticket. */
+export const IMPORTED_CASES = [
+  {
+    title: 'The total is shown before paying',
+    category: 'Functional',
+    priority: 1,
+    preconditions: 'A cart with one item',
+    steps: ['Open the cart', 'Press Checkout'],
+    expected: 'The total including tax is shown before paying.',
+  },
+  {
+    title: 'An expired card is refused',
+    category: 'Negative',
+    priority: 2,
+    preconditions: 'A saved card past its expiry date',
+    steps: ['Choose the expired card', 'Press Pay'],
+    expected: 'Payment is refused and the card field is highlighted.',
+  },
+];
+
 /**
  * Serves the whole API from memory so the suite is a pure front-end test: no backend,
  * no database, and no chance of touching the live Railway instance.
@@ -143,6 +192,44 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
   let profile: Record<string, unknown> = { ...user };
   let avatarVersion = 0;
   let hasAvatar = false;
+
+  // The Test Case Generator's little world: one suite, and whatever the test puts into it. Kept
+  // as state rather than a constant, so a second visit (or a reload) still shows the cases the
+  // first one created — the same promise the API makes.
+  const role = editor ? ('Manager' as const) : ('Viewer' as const);
+  const cases: Record<string, unknown>[] = [];
+  let nextCaseNumber = 1;
+
+  /** One case, numbered the way the API numbers them: per suite, starting at 1. */
+  const newCase = (item: Record<string, unknown>, source: 'Ai' | 'Imported' | 'Manual') => {
+    const number = nextCaseNumber++;
+    const priority = Number(item.priority);
+    return {
+      testCaseId: 500 + number,
+      suiteId: 1,
+      number,
+      caseKey: `TC-${String(number).padStart(4, '0')}`,
+      title: String(item.title ?? ''),
+      category: ['Functional', 'Negative', 'Boundary', 'UI'].includes(String(item.category)) ? item.category : 'Functional',
+      priority: Number.isFinite(priority) ? Math.min(4, Math.max(1, priority)) : 3,
+      preconditions: String(item.preconditions ?? ''),
+      steps: Array.isArray(item.steps) ? item.steps.map(String) : [],
+      expected: String(item.expected ?? ''),
+      status: 'Draft',
+      linkedTicketId: null,
+      linkedTicketKey: null,
+      source,
+      createdAt: '2026-02-01T09:00:00Z',
+    };
+  };
+
+  const suiteDetail = () => ({ ...suite(role), cases, caseCount: cases.length, screenCount: 1 });
+
+  /** A 1×1 PNG, so the screenshot strip has something to draw. */
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    'base64',
+  );
 
   // The API lives on another origin, so a fulfilled response is still subject to CORS,
   // and the Authorization header makes the browser send a preflight OPTIONS first.
@@ -181,6 +268,68 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
       const multipart = (route.request().headers()['content-type'] ?? '').startsWith('multipart/');
       const body = multipart ? null : route.request().postDataJSON();
       writes.push({ call: `${method} ${path}`, body });
+
+      // --- Test Case Generator writes ---
+      if (path === '/projects/1/testsuites' || /^\/projects\/\d+\/testsuites$/.test(path)) {
+        return json({ id: 2 }, 201);
+      }
+      if (path === '/projects/1/qc/docsets' || /^\/projects\/\d+\/qc\/docsets$/.test(path)) {
+        return json({ id: 2 }, 201);
+      }
+      if (/^\/qc\/docsets\/\d+\/screens$/.test(path)) {
+        return json([{ screenId: 99, attachmentId: 10, caption: 'Pasted Screenshot', sortOrder: 1 }]);
+      }
+      if (/^\/testsuites\/\d+\/generate$/.test(path)) {
+        const added = [
+          { title: 'The total is shown before paying', category: 'Functional', priority: 1, preconditions: 'A cart with one item', steps: ['Open the cart', 'Press Checkout'], expected: 'The total including tax is shown.' },
+          { title: 'Checkout is refused with an empty cart', category: 'Negative', priority: 2, preconditions: '', steps: ['Empty the cart', 'Press Checkout'], expected: 'Checkout stays disabled.' },
+        ].map((item) => newCase(item, 'Ai'));
+        cases.push(...added);
+        return json(added);
+      }
+      if (/^\/testsuites\/\d+\/import$/.test(path)) {
+        const raw = (body as { json?: string } | null)?.json ?? '';
+        let parsed: { testCases?: unknown } | null = null;
+        try {
+          parsed = JSON.parse(raw) as { testCases?: unknown };
+        } catch {
+          parsed = null;
+        }
+        const items = Array.isArray(parsed?.testCases) ? (parsed!.testCases as Record<string, unknown>[]) : [];
+        // The same bar the API holds: an item without a title, steps or expected result is dropped.
+        const usable = items.filter(
+          (item) => !!item && typeof item.title === 'string' && item.title.trim() !== ''
+            && Array.isArray(item.steps) && typeof item.expected === 'string',
+        );
+        if (usable.length === 0) {
+          return json({ title: 'The reply could not be read as test cases: nothing usable was left in it. Nothing was saved.', status: 400 }, 400);
+        }
+        const added = usable.map((item) => newCase(item, 'Imported'));
+        cases.push(...added);
+        return json(added);
+      }
+      const oneCase = /^\/testcases\/(\d+)$/.exec(path);
+      if (oneCase && method === 'PUT') {
+        const found = cases.find((c) => c.testCaseId === Number(oneCase[1]));
+        if (!found) return json({ message: 'Test case not found.' }, 404);
+        Object.assign(found, body ?? {});
+        return route.fulfill({ status: 204, headers: cors });
+      }
+      if (oneCase && method === 'DELETE') {
+        const index = cases.findIndex((c) => c.testCaseId === Number(oneCase[1]));
+        if (index < 0) return json({ message: 'Test case not found.' }, 404);
+        cases.splice(index, 1);
+        return route.fulfill({ status: 204, headers: cors });
+      }
+      if (/^\/testcases\/\d+\/create-ticket$/.test(path)) {
+        const id = Number(/^\/testcases\/(\d+)/.exec(path)![1]);
+        const found = cases.find((c) => c.testCaseId === id);
+        if (!found) return json({ message: 'Test case not found.' }, 404);
+        if (found.linkedTicketId) return json({ message: 'This case already has a ticket.' }, 409);
+        found.linkedTicketId = 99;
+        found.linkedTicketKey = 'RMS-V1-0009';
+        return json({ id: 99, ticketKey: 'RMS-V1-0009' });
+      }
       if (path === '/profile' && method === 'PUT') {
         profile = { ...profile, ...(body as object) };
         return json(profile);
@@ -220,6 +369,80 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
     if (path === '/projects/1/folders') return json(editor ? [FOLDER, EMPTY_FOLDER] : [FOLDER]);
     if (path === '/projects/1/suggestions') return json({ tags: TAGS });
     if (path === '/projects/1/assignees') return json(editor ? MEMBERS : []);
+
+    // --- Test Case Generator ---
+    if (path === '/projects/1/testsuites') return json([{ ...suite(role), cases: [], caseCount: 0 }]);
+    if (/^\/testsuites\/\d+$/.test(path)) return json(suiteDetail());
+    if (/^\/testsuites\/\d+\/prompt$/.test(path))
+      return json({ prompt: 'SYSTEM\nYou are a senior QA engineer. Return JSON ONLY: {"testCases":[…]}\n\nUSER\nBusiness description: …' });
+
+    // --- QC Generator ---
+    if (path === '/projects/1/qc/docsets') return json([{
+      docSetId: 1,
+      projectId: 1,
+      title: 'Restaurant System Specs',
+      appName: 'Restaurant App',
+      businessDescription: 'Specs for POS & Kitchen',
+      language: 'English',
+      logoAttachmentId: null,
+      createdBy: 7,
+      createdByName: 'Dana Lee',
+      createdAt: '2026-02-01T00:00:00Z',
+      isDemo: false,
+      screenCount: 1,
+      documentCount: 1,
+      myRole: role,
+      projectName: 'Restaurant Management System',
+      projectCode: 'RMS',
+      screens: [],
+      documents: [],
+    }]);
+    if (/^\/qc\/docsets\/\d+$/.test(path)) return json({
+      docSetId: 1,
+      projectId: 1,
+      title: 'Restaurant System Specs',
+      appName: 'Restaurant App',
+      businessDescription: 'Specs for POS & Kitchen',
+      language: 'English',
+      logoAttachmentId: null,
+      createdBy: 7,
+      createdByName: 'Dana Lee',
+      createdAt: '2026-02-01T00:00:00Z',
+      isDemo: false,
+      screenCount: 1,
+      documentCount: 1,
+      myRole: role,
+      projectName: 'Restaurant Management System',
+      projectCode: 'RMS',
+      screens: [{
+        screenId: 1,
+        docSetId: 1,
+        sortOrder: 1,
+        caption: 'Login Screen',
+        attachmentId: 1,
+        screenSummary: '{"screenTitle":"Login"}',
+        contentType: 'image/png',
+        byteSize: 1024,
+      }],
+      documents: [{
+        documentId: 1,
+        docSetId: 1,
+        kind: 'Documentation',
+        version: 1,
+        markdown: '# Product Documentation\n\nOverview of the system.',
+        status: 'Draft',
+        source: 'Ai',
+        generatedBy: 7,
+        generatedByName: 'Dana Lee',
+        createdAt: '2026-02-01T00:00:00Z',
+      }],
+    });
+    if (/^\/qc\/docsets\/\d+\/prompt/.test(path))
+      return json({ prompt: 'SYSTEM\nYou are a technical writer. Write product documentation.' });
+
+    // An <img> cannot send an Authorization header, so screenshots arrive with ?access_token=.
+    if (/^\/attachments\/\d+$/.test(path))
+      return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'image/png' }, body: png });
     if (path === '/projects/scoreboard') return json(SCOREBOARD);
     if (path === '/users/workload') return json(WORKLOAD);
     if (path === '/users/options') return json([...MEMBERS, OUTSIDER]);
@@ -281,6 +504,17 @@ export async function openLogin(page: Page) {
 export async function continueAsGuest(page: Page) {
   await openLogin(page);
   await page.getByRole('button', { name: 'Continue as a guest' }).click();
+  await openQaDocFromLauncher(page);
+}
+
+/**
+ * Signing in — password, first-run admin or the guest tour — lands on the launcher. This walks
+ * from there into the ticket tracker, which is what most of the suite is actually about.
+ */
+export async function openQaDocFromLauncher(page: Page) {
+  await expect(page).toHaveURL(/\/home$/);
+  await expect(page.getByRole('heading', { name: 'Choose an app' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open Q Desk, the ticket tracker' }).click();
   await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
 }
 

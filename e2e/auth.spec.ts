@@ -50,14 +50,28 @@ test.describe('Sign-in page', () => {
     await expect(page.getByLabel('Password')).toHaveValue('');
   });
 
-  test('correct credentials land on the project list', async ({ page }) => {
+  test('correct credentials land on the launcher', async ({ page }) => {
     await openLogin(page);
     await page.getByLabel('Username').fill('dana.lee');
     await page.getByLabel('Password').fill('correct-horse');
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole('heading', { name: 'Choose an app' })).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
+  });
+
+  test('a shared ticket link opens that ticket and skips the launcher', async ({ page }) => {
+    await page.goto('/projects/1?ticket=3');
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+
+    await page.getByLabel('Username').fill('dana.lee');
+    await page.getByLabel('Password').fill('correct-horse');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+
+    // The deep link wins: signing in from a shared link must not drop you on /home.
+    await expect(page).toHaveURL(/\/projects\/1\?ticket=3$/);
+    await expect(page.getByRole('heading', { name: 'Restaurant Management System' })).toBeVisible();
   });
 
   test('pressing Enter in the password box submits the form', async ({ page }) => {
@@ -68,14 +82,20 @@ test.describe('Sign-in page', () => {
     await page.getByLabel('Password').fill('correct-horse');
     await page.getByLabel('Password').press('Enter');
 
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole('heading', { name: 'Choose an app' })).toBeVisible();
   });
 
   test('the guest tour needs no account', async ({ page }) => {
     await openLogin(page);
     await page.getByRole('button', { name: 'Continue as a guest' }).click();
 
-    await expect(page.getByRole('heading', { name: 'All projects' })).toBeVisible();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByRole('heading', { name: 'Choose an app' })).toBeVisible();
+    // Both cards, and the guest is told the generator is read-only.
+    await expect(page.getByRole('link', { name: 'Open Q Desk, the ticket tracker' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open Q Generator' })).toBeVisible();
+    await expect(page.getByText('Q Generator is read-only')).toBeVisible();
   });
 });
 

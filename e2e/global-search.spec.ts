@@ -42,9 +42,10 @@ test.describe('Global search', () => {
     await mockApi(page, { editor: true });
     await openProject(page); // a page below Projects, so the way-back control is on the bar
 
-    // The mark (the picture) stays; the "QaDoc" word next to it is what's gone.
+    // The mark (the picture) stays; the "QaDoc" word next to it is what's gone from the brand.
     await expect(page.locator('.brand img')).toBeVisible();
-    await expect(page.locator('.topbar')).not.toContainText('QaDoc');
+    await expect(page.locator('.brand')).not.toContainText('QaDoc');
+    await expect(page.locator('.app-switch')).toBeVisible();
     // Always "Projects" — never the project's own name.
     await expect(page.locator('.back-link')).toContainText('Projects');
 

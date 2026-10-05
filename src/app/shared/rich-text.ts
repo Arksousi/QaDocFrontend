@@ -561,7 +561,7 @@ function smallest(encoded: string, original: string) {
  * small. WebP is preferred: on UI screenshots it keeps text crisp at a fraction of PNG's size.
  * Browsers that cannot encode WebP quietly return a PNG from toDataURL, so check what came back.
  */
-async function shrink(file: File): Promise<string> {
+export async function shrink(file: File): Promise<string> {
   const original = await readAsDataUrl(file);
   if (file.type === 'image/gif') return original; // keep the animation
   const img = await loadImage(original);
