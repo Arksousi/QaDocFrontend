@@ -273,6 +273,32 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
       if (path === '/projects/1/testsuites' || /^\/projects\/\d+\/testsuites$/.test(path)) {
         return json({ id: 2 }, 201);
       }
+      if (path === '/qa/crawl-jobs') {
+        return json({
+          jobId: '00000000-0000-0000-0000-000000000001',
+          suiteId: 1,
+          status: 'Crawling',
+          pagesFound: 0,
+          pagesDone: 0,
+          clicksTried: 0,
+          clicksSkipped: 0,
+          error: null,
+          partial: false,
+          finishedAt: null,
+          createdAt: '2026-02-01T09:00:00Z',
+          coverage: null,
+        }, 201);
+      }
+      if (path === '/qa/crawl-jobs/upload-html') {
+        return json({
+          jobId: '00000000-0000-0000-0000-000000000001',
+          suiteId: 1,
+          status: 'Generating',
+        }, 201);
+      }
+      if (/^\/qa\/crawl-jobs\/[a-zA-Z0-9-]+\/(cancel|regenerate)$/.test(path)) {
+        return route.fulfill({ status: 204, headers: cors });
+      }
       if (path === '/projects/1/qc/docsets' || /^\/projects\/\d+\/qc\/docsets$/.test(path)) {
         return json({ id: 2 }, 201);
       }
@@ -375,6 +401,31 @@ export async function mockApi(page: Page, options: { needsSetup?: boolean; user?
     if (/^\/testsuites\/\d+$/.test(path)) return json(suiteDetail());
     if (/^\/testsuites\/\d+\/prompt$/.test(path))
       return json({ prompt: 'SYSTEM\nYou are a senior QA engineer. Return JSON ONLY: {"testCases":[…]}\n\nUSER\nBusiness description: …' });
+    if (/^\/qa\/crawl-jobs\/[a-zA-Z0-9-]+$/.test(path)) {
+      return json({
+        id: '00000000-0000-0000-0000-000000000001',
+        suiteId: 1,
+        status: 'Done',
+        pagesFound: 5,
+        pagesDone: 5,
+        clicksTried: 12,
+        clicksSkipped: 3,
+        error: null,
+        partial: false,
+        finishedAt: '2026-02-01T09:02:00Z',
+        createdAt: '2026-02-01T09:00:00Z',
+        coverage: {
+          totalPages: 5,
+          totalGeneratedCases: 10,
+          pages: [
+            { url: 'https://example.com', title: 'Example Home', formCount: 1, inputCount: 2, buttonCount: 3, testCaseCount: 4, empty: false },
+          ],
+          skippedActions: [
+            { element: 'button', text: 'Delete account', href: null, reason: 'Dangerous label' },
+          ],
+        },
+      });
+    }
 
     // --- QC Generator ---
     if (path === '/projects/1/qc/docsets') return json([{

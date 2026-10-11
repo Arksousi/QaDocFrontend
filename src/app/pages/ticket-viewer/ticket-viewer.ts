@@ -22,6 +22,35 @@ type FilterMenu = 'state' | 'type' | 'tag';
 const summarise = (picked: string[], plural: string) =>
   picked.length === 0 ? `All ${plural}` : picked.length === 1 ? picked[0] : `${picked.length} ${plural}`;
 
+interface CalCell {
+  day: number;
+  dateStr: string;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isStart: boolean;
+  isEnd: boolean;
+  inRange: boolean;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatShortDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return `${d} ${SHORT_MONTHS[m - 1]}`;
+}
+
+function toIsoDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 @Component({
   selector: 'app-ticket-viewer',
   imports: [Avatar, FormsModule, DatePipe, Topbar, TicketCreate, TicketDetails, Modal, TypeIcon, Icon],
@@ -99,6 +128,95 @@ const summarise = (picked: string[], plural: string) =>
               <span class="state-chip-count">{{ stateCounts()[s] }}</span>
             </button>
           }
+
+          <div class="date-filter-wrap">
+            <button type="button" class="state-chip date-chip" [class.active]="hasDateFilter()"
+              [attr.aria-pressed]="hasDateFilter()" [attr.aria-expanded]="showDateMenu()"
+              (click)="toggleDateMenu($event)" title="Filter tickets by specific dates">
+              <app-icon name="calendar" />
+              <span>{{ dateFilterLabel() }}</span>
+              @if (hasDateFilter()) {
+                <span class="state-chip-count">{{ tickets().length }}</span>
+                <span class="date-chip-clear" (click)="clearDateFilter($event)" title="Clear date filter" aria-label="Clear date filter">
+                  <app-icon name="close" />
+                </span>
+              } @else {
+                <span class="date-chip-caret"><app-icon name="caret" /></span>
+              }
+            </button>
+
+            @if (showDateMenu()) {
+              <div class="date-popover" role="dialog" aria-label="Choose specific dates" (click)="$event.stopPropagation()">
+                <div class="date-popover-head">
+                  <span class="date-popover-title">Specific dates</span>
+                  <button type="button" class="icon-btn date-popover-close" (click)="showDateMenu.set(false)" aria-label="Close date picker">
+                    <app-icon name="close" />
+                  </button>
+                </div>
+
+                <div class="date-presets" role="group" aria-label="Date presets">
+                  <button type="button" class="preset-btn" (click)="applyPreset('today')">Today</button>
+                  <button type="button" class="preset-btn" (click)="applyPreset('yesterday')">Yesterday</button>
+                  <button type="button" class="preset-btn" (click)="applyPreset('last7')">Last 7 days</button>
+                  <button type="button" class="preset-btn" (click)="applyPreset('last30')">Last 30 days</button>
+                  <button type="button" class="preset-btn" (click)="applyPreset('thisMonth')">This month</button>
+                </div>
+
+                <div class="date-inputs-row">
+                  <label class="date-field">
+                    <span class="date-field-label">From</span>
+                    <input type="date" [ngModel]="draftDateFrom()" (ngModelChange)="setDraftFrom($event)" class="date-field-input" />
+                  </label>
+                  <span class="date-sep-arrow" aria-hidden="true">→</span>
+                  <label class="date-field">
+                    <span class="date-field-label">To</span>
+                    <input type="date" [ngModel]="draftDateTo()" (ngModelChange)="setDraftTo($event)" class="date-field-input" />
+                  </label>
+                </div>
+
+                <div class="cal-card">
+                  <div class="cal-nav">
+                    <button type="button" class="icon-btn cal-nav-btn" (click)="onCalPrevMonth()" aria-label="Previous month">
+                      <app-icon name="back" />
+                    </button>
+                    <span class="cal-nav-title">{{ calMonthTitle() }}</span>
+                    <button type="button" class="icon-btn cal-nav-btn" (click)="onCalNextMonth()" aria-label="Next month">
+                      <app-icon name="arrow-right" />
+                    </button>
+                  </div>
+
+                  <div class="cal-grid">
+                    <div class="cal-weekday">Su</div>
+                    <div class="cal-weekday">Mo</div>
+                    <div class="cal-weekday">Tu</div>
+                    <div class="cal-weekday">We</div>
+                    <div class="cal-weekday">Th</div>
+                    <div class="cal-weekday">Fr</div>
+                    <div class="cal-weekday">Sa</div>
+
+                    @for (cell of calDays(); track cell.dateStr) {
+                      <button type="button" class="cal-cell"
+                        [class.is-other-month]="!cell.isCurrentMonth"
+                        [class.is-today]="cell.isToday"
+                        [class.is-start]="cell.isStart"
+                        [class.is-end]="cell.isEnd"
+                        [class.in-range]="cell.inRange"
+                        (click)="onCalDayClick(cell.dateStr)">
+                        {{ cell.day }}
+                      </button>
+                    }
+                  </div>
+                </div>
+
+                <div class="date-popover-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="clearDateFilter($event)">Clear</button>
+                  <span class="grow"></span>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="showDateMenu.set(false)">Cancel</button>
+                  <button type="button" class="btn btn-primary btn-sm" (click)="applyDateFilter()">Apply</button>
+                </div>
+              </div>
+            }
+          </div>
         </div>
         <div class="toolbar">
           <span class="search-wrap">
@@ -263,9 +381,13 @@ const summarise = (picked: string[], plural: string) =>
                         </span> }
                     </td>
                     <td class="col-priority">
-                      <span class="prio prio-{{ t.priority }}" [title]="'Priority ' + t.priority + ' · ' + priorityLabel(t.priority)">
-                        <app-icon [name]="$any('priority-' + t.priority)" />{{ t.priority }}
-                      </span>
+                      @if (t.priority != null) {
+                        <span class="prio prio-{{ t.priority }}" [title]="'Priority ' + t.priority + ' · ' + priorityLabel(t.priority)">
+                          <app-icon [name]="$any('priority-' + t.priority)" />{{ t.priority }}
+                        </span>
+                      } @else {
+                        <span class="muted">—</span>
+                      }
                     </td>
                     <td class="col-assignee">
                       @if (t.assignees[0]; as first) {
@@ -397,6 +519,88 @@ export class TicketViewerPage {
   readonly loading = signal(true);
   readonly creating = signal(false);
 
+  readonly dateFrom = signal<string | null>(null);
+  readonly dateTo = signal<string | null>(null);
+  readonly showDateMenu = signal(false);
+  readonly draftDateFrom = signal<string | null>(null);
+  readonly draftDateTo = signal<string | null>(null);
+  readonly calViewMonth = signal<number>(new Date().getMonth());
+  readonly calViewYear = signal<number>(new Date().getFullYear());
+
+  readonly hasDateFilter = computed(() => !!this.dateFrom() || !!this.dateTo());
+  readonly dateFilterLabel = computed(() => {
+    const from = this.dateFrom();
+    const to = this.dateTo();
+    if (!from && !to) return 'Specific dates';
+    if (from && to) {
+      return from === to ? formatShortDate(from) : `${formatShortDate(from)} – ${formatShortDate(to)}`;
+    }
+    if (from) return `From ${formatShortDate(from)}`;
+    return `Until ${formatShortDate(to!)}`;
+  });
+  readonly calMonthTitle = computed(() => `${MONTH_NAMES[this.calViewMonth()]} ${this.calViewYear()}`);
+  readonly calDays = computed<CalCell[]>(() => {
+    const year = this.calViewYear();
+    const month = this.calViewMonth();
+    const todayStr = toIsoDate(new Date());
+    const from = this.draftDateFrom();
+    const to = this.draftDateTo();
+
+    const firstDay = new Date(year, month, 1, 12, 0, 0);
+    const startDayOfWeek = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0, 12, 0, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0, 12, 0, 0).getDate();
+
+    const cells: CalCell[] = [];
+
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      const d = prevMonthDays - i;
+      const prevDate = new Date(year, month - 1, d, 12, 0, 0);
+      const dateStr = toIsoDate(prevDate);
+      cells.push({
+        day: d,
+        dateStr,
+        isCurrentMonth: false,
+        isToday: dateStr === todayStr,
+        isStart: dateStr === from,
+        isEnd: dateStr === to,
+        inRange: !!(from && to && dateStr >= from && dateStr <= to),
+      });
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const currDate = new Date(year, month, d, 12, 0, 0);
+      const dateStr = toIsoDate(currDate);
+      cells.push({
+        day: d,
+        dateStr,
+        isCurrentMonth: true,
+        isToday: dateStr === todayStr,
+        isStart: dateStr === from,
+        isEnd: dateStr === to,
+        inRange: !!(from && to && dateStr >= from && dateStr <= to),
+      });
+    }
+
+    const totalCells = cells.length > 35 ? 42 : 35;
+    const remaining = totalCells - cells.length;
+    for (let d = 1; d <= remaining; d++) {
+      const nextDate = new Date(year, month + 1, d, 12, 0, 0);
+      const dateStr = toIsoDate(nextDate);
+      cells.push({
+        day: d,
+        dateStr,
+        isCurrentMonth: false,
+        isToday: dateStr === todayStr,
+        isStart: dateStr === from,
+        isEnd: dateStr === to,
+        inRange: !!(from && to && dateStr >= from && dateStr <= to),
+      });
+    }
+
+    return cells;
+  });
+
   readonly search = signal('');
   /** Ticked values. Empty means no filter at all on that field. */
   readonly state = signal<string[]>([]);
@@ -413,12 +617,12 @@ export class TicketViewerPage {
   readonly typeLabel = computed(() => summarise(this.type(), 'types'));
   readonly tagLabel = computed(() => summarise(this.tag(), 'tags'));
   readonly hasFilters = computed(() =>
-    !!this.search() || this.state().length > 0 || this.type().length > 0 || this.tag().length > 0 || this.mine());
+    !!this.search() || this.state().length > 0 || this.type().length > 0 || this.tag().length > 0 || this.mine() || this.hasDateFilter());
   readonly sortKey = signal<SortKey>('activityDate');
   readonly sortAsc = signal(false);
   /** Only "Assigned to me" is on: the toolbar keeps quiet, and the empty screen offers "Show all tickets". */
   readonly onlyMine = computed(() =>
-    this.mine() && !this.search() && !this.state().length && !this.type().length && !this.tag().length);
+    this.mine() && !this.search() && !this.state().length && !this.type().length && !this.tag().length && !this.hasDateFilter());
   /** The one state the chips have narrowed to, if exactly one is ticked. */
   readonly onlyState = computed(() => (this.state().length === 1 ? this.state()[0] : null));
   /**
@@ -475,7 +679,7 @@ export class TicketViewerPage {
       : key === 'tags' ? t.tags.join(', ').toLowerCase()
       : key === 'assignees' ? this.assigneeNames(t).toLowerCase()
       : key === 'activityDate' ? t.activityDate
-      : key === 'priority' ? t.priority
+      : key === 'priority' ? (t.priority ?? 999)
       : (t[key] ?? '').toLowerCase();
     return [...this.tickets()].sort((a, b) => (value(a) > value(b) ? dir : value(a) < value(b) ? -dir : b.ticketId - a.ticketId));
   });
@@ -494,10 +698,10 @@ export class TicketViewerPage {
       this.loadFolders(id);
     });
     effect(() => {
-      const [id, folderId, search, states, types, tags, mine] =
-        [this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine()];
+      const [id, folderId, search, states, types, tags, mine, from, to] =
+        [this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine(), this.dateFrom(), this.dateTo()];
       clearTimeout(this.searchTimer);
-      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, states, types, tags, mine), search ? 250 : 0);
+      this.searchTimer = setTimeout(() => this.loadTickets(id, folderId, search, states, types, tags, mine, from, to), search ? 250 : 0);
     });
     // The state menu is fixed to the viewport; if anything scrolls under it, it would float off
     // its row, so it closes. Scrolling doesn't bubble, hence the capture listener while it is open.
@@ -596,16 +800,143 @@ export class TicketViewerPage {
     const insideAMenu = target instanceof Element && target.closest('.filter-menu') !== null;
     if (this.openMenu() && !insideAMenu) this.openMenu.set(null);
     if (this.stateMenu() && !(target instanceof Element && target.closest('.state-menu'))) this.stateMenu.set(null);
+    const insideDateWrap = target instanceof Element && target.closest('.date-filter-wrap') !== null;
+    if (this.showDateMenu() && !insideDateWrap) this.showDateMenu.set(false);
   }
 
   @HostListener('document:keydown.escape')
   onEscape() {
     this.openMenu.set(null);
     this.closeStateMenu();
+    this.showDateMenu.set(false);
   }
 
-  priorityLabel(p: number) {
-    return PRIORITY_LABELS[p] ?? '';
+  toggleDateMenu(event: Event) {
+    event.stopPropagation();
+    const next = !this.showDateMenu();
+    if (next) {
+      this.draftDateFrom.set(this.dateFrom());
+      this.draftDateTo.set(this.dateTo());
+      const anchor = this.dateFrom() ?? toIsoDate(new Date());
+      const [y, m] = anchor.split('-').map(Number);
+      this.calViewYear.set(y);
+      this.calViewMonth.set(m - 1);
+      this.openMenu.set(null);
+    }
+    this.showDateMenu.set(next);
+  }
+
+  onCalPrevMonth() {
+    let m = this.calViewMonth() - 1;
+    let y = this.calViewYear();
+    if (m < 0) {
+      m = 11;
+      y--;
+    }
+    this.calViewMonth.set(m);
+    this.calViewYear.set(y);
+  }
+
+  onCalNextMonth() {
+    let m = this.calViewMonth() + 1;
+    let y = this.calViewYear();
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+    this.calViewMonth.set(m);
+    this.calViewYear.set(y);
+  }
+
+  onCalDayClick(dateStr: string) {
+    const from = this.draftDateFrom();
+    const to = this.draftDateTo();
+    if (!from || (from && to)) {
+      this.draftDateFrom.set(dateStr);
+      this.draftDateTo.set(null);
+    } else {
+      if (dateStr < from) {
+        this.draftDateFrom.set(dateStr);
+        this.draftDateTo.set(null);
+      } else {
+        this.draftDateTo.set(dateStr);
+      }
+    }
+  }
+
+  setDraftFrom(v: string | null) {
+    this.draftDateFrom.set(v || null);
+    if (v) {
+      const [y, m] = v.split('-').map(Number);
+      this.calViewYear.set(y);
+      this.calViewMonth.set(m - 1);
+    }
+  }
+
+  setDraftTo(v: string | null) {
+    this.draftDateTo.set(v || null);
+  }
+
+  applyPreset(preset: 'today' | 'yesterday' | 'last7' | 'last30' | 'thisMonth') {
+    const today = new Date();
+    let fromDate: Date;
+    let toDate: Date = today;
+
+    if (preset === 'today') {
+      fromDate = today;
+      toDate = today;
+    } else if (preset === 'yesterday') {
+      const y = new Date(today);
+      y.setDate(today.getDate() - 1);
+      fromDate = y;
+      toDate = y;
+    } else if (preset === 'last7') {
+      const f = new Date(today);
+      f.setDate(today.getDate() - 6);
+      fromDate = f;
+      toDate = today;
+    } else if (preset === 'last30') {
+      const f = new Date(today);
+      f.setDate(today.getDate() - 29);
+      fromDate = f;
+      toDate = today;
+    } else {
+      fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      toDate = today;
+    }
+
+    const fromStr = toIsoDate(fromDate);
+    const toStr = toIsoDate(toDate);
+    this.draftDateFrom.set(fromStr);
+    this.draftDateTo.set(toStr);
+    this.calViewYear.set(toDate.getFullYear());
+    this.calViewMonth.set(toDate.getMonth());
+  }
+
+  applyDateFilter() {
+    let from = this.draftDateFrom();
+    let to = this.draftDateTo();
+    if (from && to && from > to) {
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
+    this.dateFrom.set(from);
+    this.dateTo.set(to ?? from);
+    this.showDateMenu.set(false);
+  }
+
+  clearDateFilter(e?: Event) {
+    if (e) e.stopPropagation();
+    this.dateFrom.set(null);
+    this.dateTo.set(null);
+    this.draftDateFrom.set(null);
+    this.draftDateTo.set(null);
+    this.showDateMenu.set(false);
+  }
+
+  priorityLabel(p: number | null | undefined) {
+    return p != null ? (PRIORITY_LABELS[p] ?? '') : '';
   }
 
   /** A chip narrows the list to its state; clicking the chip that is already on clears it. */
@@ -674,6 +1005,7 @@ export class TicketViewerPage {
     this.tag.set([]);
     this.mine.set(false);
     this.openMenu.set(null);
+    this.clearDateFilter();
   }
 
   /** Ticked values are held in the panel's own order, so the button label reads the way the list does. */
@@ -697,7 +1029,7 @@ export class TicketViewerPage {
   refresh() {
     this.loadProject(this.projectId());
     this.loadFolders(this.projectId());
-    this.loadTickets(this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine());
+    this.loadTickets(this.projectId(), this.folderId(), this.search(), this.state(), this.type(), this.tag(), this.mine(), this.dateFrom(), this.dateTo());
   }
 
   private async loadFolders(id: number) {
@@ -718,10 +1050,22 @@ export class TicketViewerPage {
     }
   }
 
-  private async loadTickets(id: number, folderId: number | null, search: string, states: string[], types: string[], tags: string[], mine: boolean) {
+  private async loadTickets(
+    id: number,
+    folderId: number | null,
+    search: string,
+    states: string[],
+    types: string[],
+    tags: string[],
+    mine: boolean,
+    dateFrom: string | null = null,
+    dateTo: string | null = null,
+  ) {
     try {
       const assignedTo = mine ? this.auth.user()?.userId : null;
-      const filters = { folderId, search, states, types, tags, assignedTo };
+      const fromDate = dateFrom ? new Date(dateFrom + 'T00:00:00').toISOString() : null;
+      const toDate = dateTo ? new Date(dateTo + 'T23:59:59.999').toISOString() : null;
+      const filters = { folderId, search, states, types, tags, assignedTo, fromDate, toDate };
       // The chip counts need the view without its state filter. Asked first, so the list's own
       // request is always the latest one sent.
       const scope = states.length ? this.api.tickets(id, { ...filters, states: [] }) : null;

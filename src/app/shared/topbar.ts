@@ -1,6 +1,6 @@
 import { Component, ElementRef, HostListener, computed, inject, input, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../core/auth.service';
 import { ApiService } from '../core/api.service';
@@ -12,14 +12,37 @@ import { Avatar } from './avatar';
 
 @Component({
   selector: 'app-topbar',
-  imports: [Avatar, RouterLink, RouterLinkActive, ChangePassword, Icon, NotificationBell],
+  imports: [Avatar, RouterLink, ChangePassword, Icon, NotificationBell],
   template: `
     <header class="topbar">
-      <!-- The mark stays as the way home; the "Q Desk" word is what's gone — the page below
-           says what you are looking at, so the bar carries the picture, not the name. -->
-      <a class="brand" routerLink="/" aria-label="Q Desk home" title="Q Desk">
-        <img class="brand-logo" src="logo-mark.png" alt="Q Desk" />
-      </a>
+      <!-- The brand has moved to the sidebar -->
+
+      @if (auth.user()) {
+        <!-- Global search across every project this account can see; two characters start it. -->
+        <div class="topbar-search">
+          <app-icon name="search" />
+          <!-- type="text", not "search": Chromium clears a search input on Escape, which would
+               eat the query the user is about to correct. -->
+          <input #globalSearch type="text" inputmode="search" placeholder="Search tickets" autocomplete="off"
+            aria-label="Search all projects" [value]="query()"
+            (input)="onSearchInput(globalSearch.value)" (keydown.enter)="openFirst()" />
+          @if (searchOpen()) {
+            <div class="menu search-results" role="listbox" aria-label="Search results">
+              @for (hit of results(); track hit.ticketId) {
+                <a role="option" class="search-hit" [routerLink]="['/projects', hit.projectId]"
+                  [queryParams]="{ ticket: hit.ticketId }" (click)="closeSearch()">
+                  <span class="id-chip">{{ hit.ticketKey }}</span>
+                  <span class="hit-title">{{ hit.title }}</span>
+                  <span class="hit-project muted small">{{ hit.projectName }}</span>
+                </a>
+              } @empty {
+                <p class="search-empty muted small">No tickets match “{{ query() }}”.</p>
+              }
+            </div>
+          }
+        </div>
+      }
+
       <!-- A quiet way back to the project list; the page below says what you are looking at. -->
       @if (crumb()) {
         <a class="back-link" routerLink="/">
@@ -27,55 +50,9 @@ import { Avatar } from './avatar';
           <span>Projects</span>
         </a>
       }
-      <!-- The two apps, and the way back to the launcher. Plain links: switching app is a
-           navigation, not a session change, so nobody is ever signed out by using it. -->
-      <nav class="app-switch" aria-label="Switch app">
-        <a class="app-switch-home" routerLink="/home" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="active"
-          aria-label="All apps" title="All apps"><app-icon name="apps" /></a>
-        <a routerLink="/" [routerLinkActiveOptions]="{ exact: true }" routerLinkActive="active"
-          aria-label="Q Desk, the ticket tracker" title="Q Desk">
-          <app-icon name="folder" /><span class="app-switch-label">Q Desk</span>
-        </a>
-        <a routerLink="/q" [class.active]="inQGenerator()"
-          aria-label="Q Generator" title="Q Generator">
-          <app-icon name="testcase" /><span class="app-switch-label">Q Generator</span>
-        </a>
-      </nav>
 
-      <!-- Inside Q Generator: secondary tab bar QA | QC -->
-      @if (inQGenerator()) {
-        <nav class="q-tabs" aria-label="Q Generator sections">
-          <a routerLink="/q/qa" routerLinkActive="active" aria-label="QA Generator">QA</a>
-          <a routerLink="/q/qc" routerLinkActive="active" aria-label="QC Generator">QC</a>
-        </nav>
-      }
-      <!-- Order: search, the page's own action (Create ticket), notifications, then who you are. -->
+      <!-- Actions on the right: page-specific action (Create ticket), notifications, and user account -->
       <div class="topbar-actions">
-        @if (auth.user()) {
-          <!-- Global search across every project this account can see; two characters start it. -->
-          <div class="topbar-search">
-            <app-icon name="search" />
-            <!-- type="text", not "search": Chromium clears a search input on Escape, which would
-                 eat the query the user is about to correct. -->
-            <input #globalSearch type="text" inputmode="search" placeholder="Search tickets" autocomplete="off"
-              aria-label="Search all projects" [value]="query()"
-              (input)="onSearchInput(globalSearch.value)" (keydown.enter)="openFirst()" />
-            @if (searchOpen()) {
-              <div class="menu search-results" role="listbox" aria-label="Search results">
-                @for (hit of results(); track hit.ticketId) {
-                  <a role="option" class="search-hit" [routerLink]="['/projects', hit.projectId]"
-                    [queryParams]="{ ticket: hit.ticketId }" (click)="closeSearch()">
-                    <span class="id-chip">{{ hit.ticketKey }}</span>
-                    <span class="hit-title">{{ hit.title }}</span>
-                    <span class="hit-project muted small">{{ hit.projectName }}</span>
-                  </a>
-                } @empty {
-                  <p class="search-empty muted small">No tickets match “{{ query() }}”.</p>
-                }
-              </div>
-            }
-          </div>
-        }
         <ng-content />
         @if (auth.user() && !auth.isGuest()) {
           <app-notification-bell />
@@ -112,21 +89,7 @@ import { Avatar } from './avatar';
                     <app-icon name="user" /> Profile
                   </a>
                 }
-                <div class="menu-group" role="group" aria-label="Go to">
-                  <span class="menu-label" aria-hidden="true">Go to</span>
-                  <a role="menuitem" routerLink="/" [class.active]="isAt('/', true) || isAt('/projects')" (click)="menuOpen.set(false)">
-                    <app-icon name="folder" /> Projects
-                  </a>
-                  @if (auth.canLead()) {
-                    <!-- One Dashboard now holds both views; the legacy paths still count as here. -->
-                    <a role="menuitem" routerLink="/dashboard"
-                      [class.active]="isAt('/dashboard') || isAt('/leader') || isAt('/users-dashboard')"
-                      (click)="menuOpen.set(false)">
-                      <app-icon name="chart" /> Dashboard
-                    </a>
-                  }
-                </div>
-                @if (auth.isAdmin()) {
+                  @if (auth.isAdmin()) {
                   <div class="menu-group" role="group" aria-label="Admin">
                     <span class="menu-label" aria-hidden="true">Admin</span>
                     <a role="menuitem" routerLink="/users" [class.active]="isAt('/users', true)" (click)="menuOpen.set(false)">
@@ -224,9 +187,9 @@ export class Topbar {
     { initialValue: this.router.url.split(/[?#]/)[0] },
   );
 
-  readonly inQGenerator = computed(() => {
-    const p = this.path();
-    return p === '/q' || p.startsWith('/q/') || p === '/testcases' || p.startsWith('/testcases/');
+  readonly currentProjectId = computed(() => {
+    const match = this.path().match(/\/projects\/(\d+)/);
+    return match ? Number(match[1]) : null;
   });
 
   /** Whether the page on screen is this one (or below it, unless exact). */
@@ -249,3 +212,4 @@ export class Topbar {
     this.searchOpen.set(false);
   }
 }
+

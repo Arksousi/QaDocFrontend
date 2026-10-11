@@ -1,59 +1,97 @@
-# QA Documentation
+# Q Desk — Frontend
 
-This project is For Qualitiy Assuarance Engineers Documentation , Something easier than JIRA For Juniors to Understand the Concepts of QA
+The modern web application for [Q Desk](../README.md), a unified QA ticket tracking and AI-powered test case & documentation platform. Built with Angular 22 using standalone components, signals, and typed reactive flows.
 
-## Development server
+## Architecture & Apps
 
-To start a local development server, run:
+Q Desk brings together ticket tracking and AI-powered test case & documentation generation under one unified workspace:
 
-```bash
-ng serve
+```
+/ (Project Menu)
+├── /projects/:id   Q Desk (Ticket Tracker)
+│                   ├── Projects, Folders & Numbered Tickets
+│                   ├── Live State Graph & Full Change History
+│                   ├── Rich Text Comments with @Mentions
+│                   └── Leader & Users Workload Dashboards
+└── Generator Suite (accessible via User Profile Menu under Dashboard)
+    ├── /q/qa       TC Generator: AI Test Case Generation
+    │               └── Web Crawl / Offline HTML + Groq AI → Structured Test Cases (Passed/Failed → Tickets)
+    └── /q/qc       Docs Generator: AI Documentation & User Manuals
+                    └── Sequenced Screens + Logo → Software Documentation & User Manuals (.docx / .md / .html)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+The user menu (top-right avatar) contains direct access to **Projects**, **Dashboard**, **TC Generator**, and **Docs Generator**. Sign-in routes directly to the Project Menu (`/`), and the browser tab title always displays **Q Desk**.
 
-## Code scaffolding
+## Key Features
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+### 1. Q Desk (Ticket Tracker)
+- **Folder Structure:** Projects split into logical folders with independent counters (`RMS-V1-0001`).
+- **Interactive State Graph:** Visual breadcrumb of the ticket's journey (Open → In Progress → Resolved → Retest → Closed) showing who moved it and exact timestamps.
+- **Single Assignee with Capacity Indicators:** Contributor load indicators (`7/9`, amber warning, red cap) with soft warnings.
+- **Real-Time Notifications:** Instant top-bar notifications for assignments, mentions, and Retest transitions.
+- **Global Search:** Fast debounced search matching title, ticket key, or tags across all visible projects.
 
+### 2. QA Generator (Test Cases)
+- **AI-Powered Generation:** Sends screenshots and a business description to Groq or Google Gemini vision models.
+- **Categorized Test Cases:** Functional, Negative, Boundary, and UI test cases with priority, preconditions, steps, and expected results.
+- **Interactive Execution:** Mark cases as Passed or Failed. One-click conversion from a Failed test case directly into a linked Q Desk ticket.
+- **Manual Route & JSON Import:** Pre-rendered copyable prompt for external LLMs (Claude, ChatGPT), with structured JSON import.
+- **Clipboard Paste:** Full `Ctrl + V` pasting support for screenshots directly in the creation dialog.
+
+### 3. QC Generator (Software Documentation & User Manuals)
+- **Document Type Selection:** Choose between **Software Documentation**, **User Manual**, or **Both Documents** in the creation wizard.
+- **Sequenced Screens & Logo:** Sequenced screenshot timeline with captions and step ordering; app logo displayed on document headers.
+- **Sequential Vision Pipeline:** Step-by-step screen analysis with live progress bar and step counter.
+- **Versioned Markdown:** History of generated or imported drafts, markdown editor, and one-click approval.
+- **Multi-Format Export:** Word document (`.docx` with embedded high-res screenshots and table of contents), clean Markdown (`.md`), and printable HTML (`.html`).
+- **Clipboard & Drag-and-Drop:** Seamless `Ctrl + V` pasting and drag-and-drop for both app logo and sequenced screenshots.
+
+## Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| **Angular 22** | Standalone components, signals (`signal`, `computed`), reactive primitives |
+| **TypeScript 6** | Strict type safety and models |
+| **Playwright** | End-to-end testing, smoke testing, and role permission matrix |
+| **Fonts** | JetBrains Mono (code/mono elements) and Manrope (UI typography) |
+| **Browser WebP Processing** | Client-side Canvas-based resizing and WebP compression before upload |
+
+## Development
+
+### Prerequisites
+- Node.js 20+ (Node 24 recommended)
+- npm 10+
+
+### Setup & Run
 ```bash
-ng generate component component-name
+# Install dependencies
+npm install
+
+# Start development server at http://localhost:4200
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+The dev server proxies API calls to `http://localhost:5134` (ASP.NET Core Web API).
+
+### Build
+```bash
+npm run build
+```
+Production output is compiled into the `dist/QaDocFrontend` directory.
+
+### Testing
 
 ```bash
-ng generate --help
+# Run all end-to-end Playwright tests
+npm run e2e
+
+# Run targeted test suites
+npx playwright test e2e/testcase-generator.spec.ts
+npx playwright test e2e/auth.spec.ts
+
+# Run production smoke tests
+npm run smoke
+
+# Run full authorization permission matrix
+npm run authz
 ```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.

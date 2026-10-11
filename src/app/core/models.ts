@@ -7,7 +7,7 @@ export const IMPACTS = ['Low', 'Medium', 'High', 'Critical', 'Showstopper'] as c
  */
 export const ROLES = ['Admin', 'Leader', 'Developer', 'Tester'] as const;
 /** What kind of work a ticket represents. */
-export const TICKET_TYPES = ['Bug', 'Enhancement', 'Issue'] as const;
+export const TICKET_TYPES = ['Bug', 'Enhancement', 'Issue', 'Requirement'] as const;
 /** What a membership can be set to, least to most capable. Managing is not one of them; see ProjectAccess. */
 export const PROJECT_ROLES = ['Viewer', 'Contributor'] as const;
 export const PRIORITIES = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }] as const;
@@ -53,6 +53,7 @@ export interface User {
   bio?: string | null;
   /** 0 while they have no picture; goes up each time it changes. */
   avatarVersion?: number;
+  aiPrompt?: string | null;
 }
 
 /** Active user shown in "Assigned To" pickers, with their load so the picker can warn. */
@@ -281,8 +282,8 @@ export interface Ticket {
   /** Everyone working on it, in the order they were added. Empty while unassigned. */
   assignees: TicketAssignee[];
   state: TicketState;
-  priority: number;
-  impact: Impact;
+  priority: number | null;
+  impact: Impact | null;
   createdAt: string;
   activityDate: string;
   createdByName: string | null;
@@ -312,8 +313,8 @@ export interface SaveTicket {
   /** Empty means unassigned. */
   assignedToUserIds: number[];
   state: TicketState;
-  priority: number;
-  impact: Impact;
+  priority: number | null;
+  impact: Impact | null;
   tags: string[];
 }
 
@@ -377,6 +378,7 @@ export interface TestCase {
   linkedTicketId: number | null;
   linkedTicketKey: string | null;
   source: TestCaseSource;
+  sourceUrl?: string | null;
   createdAt: string;
 }
 
@@ -393,6 +395,7 @@ export interface TestSuite {
   isDemo: boolean;
   screenCount: number;
   caseCount: number;
+  startUrl?: string | null;
   projectName: string;
   projectCode: string;
   folderName: string;
@@ -400,6 +403,66 @@ export interface TestSuite {
   myRole: string | null;
   screens: TestSuiteScreen[];
   cases: TestCase[];
+}
+
+// ---------- Crawl & QA Generator ----------
+
+export type CrawlJobStatus = 'Queued' | 'Crawling' | 'Generating' | 'Done' | 'Failed' | 'Cancelled';
+
+export interface StartCrawlRequest {
+  projectId: number;
+  suiteId?: number | null;
+  suiteTitle?: string;
+  startUrl: string;
+  username?: string;
+  password?: string;
+  maxPages?: number;
+  maxMinutes?: number;
+  pathPrefix?: string;
+  extraUrls?: string[];
+  storageStateJson?: string;
+  notes?: string;
+  authorized: boolean;
+}
+
+export interface DiscoveredPageSummary {
+  url: string;
+  title: string;
+  stateLabel?: string | null;
+  formsCount: number;
+  inputsCount: number;
+  buttonsCount: number;
+  casesCount: number;
+  possiblyEmpty: boolean;
+  generated: boolean;
+}
+
+export interface SkippedActionSummary {
+  url: string;
+  element: string;
+  text: string;
+  reason: string;
+}
+
+export interface CrawlCoverageReport {
+  pages: DiscoveredPageSummary[];
+  skippedActions: SkippedActionSummary[];
+}
+
+export interface CrawlJobResponse {
+  jobId: string;
+  suiteId: number;
+  startUrl: string;
+  status: CrawlJobStatus;
+  partial: boolean;
+  pagesFound: number;
+  pagesDone: number;
+  clicksTried: number;
+  clicksSkipped: number;
+  error?: string | null;
+  createdAt: string;
+  finishedAt?: string | null;
+  coverage?: CrawlCoverageReport | null;
 }
 
 // ---------- QC Generator (Product Documentation & User Manual) ----------

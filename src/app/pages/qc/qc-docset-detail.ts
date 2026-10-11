@@ -9,6 +9,7 @@ import { MAX_QC_DOCSET_IMAGES, QcDocScreen, QcDocSet, QcDocument, QcJobStatus, c
 import { ToastService } from '../../core/toast.service';
 import { extractImageFiles, isTextPasteInInput, normalizePastedFiles } from '../../shared/clipboard';
 import { Icon } from '../../shared/icon';
+import { ImageViewer } from '../../shared/image-viewer';
 import { shrink } from '../../shared/rich-text';
 import { Topbar } from '../../shared/topbar';
 
@@ -18,7 +19,7 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 @Component({
   selector: 'app-qc-docset-detail',
-  imports: [FormsModule, DatePipe, NgTemplateOutlet, RouterLink, Topbar, Icon],
+  imports: [FormsModule, DatePipe, NgTemplateOutlet, RouterLink, Topbar, Icon, ImageViewer],
   template: `
     <app-topbar />
 
@@ -29,13 +30,13 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
         <div class="card empty">
           <h2>Documentation set not found</h2>
           <p>It may have been deleted, or it belongs to a project you cannot see.</p>
-          <a class="btn btn-primary" routerLink="/q/qc">Back to QC Generator</a>
+          <a class="btn btn-primary" routerLink="/q/qc">Back to Docs Generator</a>
         </div>
       } @else {
         @let ds = docSet()!;
         <div class="breadcrumb">
           <a class="back-link" routerLink="/q/qc" [queryParams]="{ project: ds.projectId }">
-            <app-icon name="back" /><span>QC Generator</span>
+            <app-icon name="back" /><span>Docs Generator</span>
           </a>
           <span class="sep">/</span>
           <span>{{ ds.projectName }}</span>
@@ -44,7 +45,9 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
         <div class="docset-header card">
           <div class="docset-header-main">
             @if (ds.logoAttachmentId) {
-              <img [src]="'/api/attachments/' + ds.logoAttachmentId + '?access_token=' + token()" alt="App Logo" class="docset-logo" />
+              <img [src]="attachmentUrl(ds.logoAttachmentId)" alt="App Logo" class="docset-logo"
+                (click)="viewingImage.set({ src: attachmentUrl(ds.logoAttachmentId), alt: ds.appName + ' Logo' })"
+                title="Click to enlarge logo" style="cursor: pointer;" />
             }
             <div class="docset-title-box">
               <div class="docset-chips">
@@ -63,13 +66,13 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
           <!-- Tab Navigation -->
           <nav class="docset-tabs" aria-label="Docset Sections">
-            <button type="button" class="tab-link" [class.active]="activeTab() === 'screens'" (click)="activeTab.set('screens')">
+            <button type="button" class="tab-link" [class.active]="activeTab() === 'screens'" (click)="setTab('screens')">
               Screens ({{ ds.screens.length }})
             </button>
-            <button type="button" class="tab-link" [class.active]="activeTab() === 'documentation'" (click)="activeTab.set('documentation')">
-              Product Documentation ({{ docsForKind('Documentation').length }})
+            <button type="button" class="tab-link" [class.active]="activeTab() === 'documentation'" (click)="setTab('documentation')">
+              Software Documentation ({{ docsForKind('Documentation').length }})
             </button>
-            <button type="button" class="tab-link" [class.active]="activeTab() === 'manual'" (click)="activeTab.set('manual')">
+            <button type="button" class="tab-link" [class.active]="activeTab() === 'manual'" (click)="setTab('manual')">
               User Manual ({{ docsForKind('UserManual').length }})
             </button>
           </nav>
@@ -84,13 +87,14 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
             <input #screenPicker type="file" accept="image/png,image/jpeg,image/webp" multiple hidden (change)="onAddScreens(screenPicker)" />
             <div class="tab-toolbar">
               <h2>Screenshots ({{ ds.screens.length }}/{{ maxImages }})</h2>
-              @if (canEdit()) {
-                <div class="toolbar-actions">
-                  <button type="button" class="btn btn-sm btn-primary" (click)="screenPicker.click()" title="Add screenshots or paste (Ctrl+V)">
-                    <app-icon name="plus" /> Add screenshots
-                  </button>
-                </div>
-              }
+              <div class="toolbar-actions">
+                @if (canEdit() && ds.screens.length > 0) {
+                    <button type="button" class="btn btn-sm btn-primary" (click)="screenPicker.click()" title="Add screenshots or paste (Ctrl+V)">
+                      <app-icon name="plus" /> Add screenshots
+                    </button>
+                  }
+                
+              </div>
             </div>
 
             @if (ds.screens.length === 0) {
@@ -122,8 +126,10 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
                       }
                     </div>
 
-                    <div class="screen-img-container">
-                      <img [src]="'/api/attachments/' + screen.attachmentId + '?access_token=' + token()" [alt]="screen.caption || 'Screen ' + (idx + 1)" />
+                    <div class="screen-img-container"
+                      (click)="viewingImage.set({ src: attachmentUrl(screen.attachmentId), alt: screen.caption || 'Step #' + (idx + 1) })"
+                      title="Click to enlarge screenshot" style="cursor: pointer;">
+                      <img [src]="attachmentUrl(screen.attachmentId)" [alt]="screen.caption || 'Screen ' + (idx + 1)" loading="lazy" />
                     </div>
 
                     <div class="screen-caption-area">
@@ -168,7 +174,8 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
             <!-- Document Sub-Toolbar -->
             <div class="tab-toolbar doc-toolbar">
               <div class="doc-toolbar-left">
-                <h2>{{ kind === 'Documentation' ? 'Product Specification & Documentation' : 'User Manual' }}</h2>
+                <h2>{{ kind === 'Documentation' ? 'Software Documentation' : 'User Manual' }}</h2>
+                
                 @if (docs.length > 0) {
                   <div class="version-select-wrap">
                     <label for="verSelect-{{ kind }}" class="sr-only">Version</label>
@@ -209,7 +216,7 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
                   <div class="job-status-title">
                     @if (job.status === 'Running' || job.status === 'Pending') {
                       <span class="spinner"></span>
-                      <strong>AI Generating {{ kind }}:</strong>
+                      <strong>AI Generating {{ kind === 'Documentation' ? 'Software Documentation' : 'User Manual' }}:</strong>
                     } @else if (job.status === 'Failed') {
                       <app-icon name="alert" />
                       <strong>Generation Failed:</strong>
@@ -319,8 +326,8 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
               </div>
             } @else {
               <div class="card empty">
-                <h3>No {{ kind }} produced yet</h3>
-                <p>Generate one using AI from the sequenced screenshots, or import markdown manually.</p>
+                <h3>No {{ kind === 'Documentation' ? 'Software Documentation' : 'User Manual' }} produced yet</h3>
+                <p>Generate {{ kind === 'Documentation' ? 'Software Documentation' : 'a User Manual' }} using AI from the sequenced screenshots, or import markdown manually.</p>
                 @if (canEdit()) {
                   <button type="button" class="btn btn-primary" (click)="startGenerate(kind)">Generate with AI</button>
                 }
@@ -330,12 +337,17 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
         </ng-template>
       }
     </main>
+
+    @if (viewingImage(); as img) {
+      <app-image-viewer [src]="img.src" [alt]="img.alt" (closed)="viewingImage.set(null)" />
+    }
   `,
 })
 export class QcDocSetDetailPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
 
@@ -344,8 +356,14 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
   readonly docSet = signal<QcDocSet | null>(null);
   readonly activeTab = signal<Tab>('screens');
   readonly draggingScreens = signal(false);
+  readonly viewingImage = signal<{ src: string; alt: string } | null>(null);
 
   readonly token = computed(() => this.auth.getToken() ?? '');
+
+  attachmentUrl(attachmentId: number | null | undefined): string {
+    if (!attachmentId) return '';
+    return this.api.attachmentUrl(attachmentId, this.token());
+  }
 
   readonly canEdit = computed(() => {
     if (this.auth.isGuest()) return false;
@@ -376,7 +394,30 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
 
   reReadManualScreens = false;
 
+  kindLabel(kind: string): string {
+    return kind === 'Documentation' ? 'Software Documentation' : 'User Manual';
+  }
+
+  setTab(tab: Tab) {
+    this.activeTab.set(tab);
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
   async ngOnInit() {
+    const tabParam = this.route.snapshot.queryParamMap.get('tab');
+    if (tabParam === 'manual') {
+      this.activeTab.set('manual');
+    } else if (tabParam === 'documentation' || tabParam === 'doc') {
+      this.activeTab.set('documentation');
+    } else if (tabParam === 'screens') {
+      this.activeTab.set('screens');
+    }
+
     const id = Number(this.route.snapshot.paramMap.get('docsetId'));
     if (!id) {
       this.loading.set(false);
@@ -594,7 +635,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
     try {
       const reRead = kind === 'UserManual' ? this.reReadManualScreens : false;
       const { jobId } = await this.api.generateQcDocument(ds.docSetId, kind, reRead);
-      this.toast.show(`Started generating ${kind}...`);
+      this.toast.show(`Started generating ${this.kindLabel(kind)}...`);
 
       const initialStatus: QcJobStatus = {
         jobId,
@@ -629,7 +670,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
         if (status.status === 'Completed') {
           clearInterval(this.pollInterval);
           this.pollInterval = null;
-          this.toast.show(`${kind} generated successfully!`);
+          this.toast.show(`${this.kindLabel(kind)} generated successfully!`);
           if (this.docSet()) {
             await this.loadDocSet(this.docSet()!.docSetId);
             if (status.documentId) {
@@ -683,7 +724,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
     this.importing.set(true);
     try {
       const created = await this.api.importQcDocument(ds.docSetId, kind, this.importMarkdown.trim());
-      this.toast.show(`Imported new ${kind} version.`);
+      this.toast.show(`Imported new ${this.kindLabel(kind)} version.`);
       this.importMarkdown = '';
       this.manualPanelState.update((m) => ({ ...m, [kind]: false }));
       await this.loadDocSet(ds.docSetId);
@@ -717,7 +758,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
       await this.api.updateQcDocument(doc.documentId, { markdown: this.editingText });
       doc.markdown = this.editingText;
       this.editState.update((m) => ({ ...m, [kind]: false }));
-      this.toast.show('Document saved.');
+      this.toast.show(`${this.kindLabel(kind)} saved.`);
     } catch {
       this.toast.show('Could not save changes.');
     } finally {
@@ -729,7 +770,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
     try {
       await this.api.updateQcDocument(doc.documentId, { status: 'Approved' });
       doc.status = 'Approved';
-      this.toast.show('Document approved.');
+      this.toast.show(`${this.kindLabel(doc.kind)} approved.`);
       if (this.docSet()) await this.loadDocSet(this.docSet()!.docSetId);
     } catch {
       this.toast.show('Could not approve document.');
@@ -772,3 +813,5 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
       .replace(/\n/gim, '<br>');
   }
 }
+
+

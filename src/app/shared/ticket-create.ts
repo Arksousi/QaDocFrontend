@@ -1,7 +1,7 @@
 import { Component, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, UserOption } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, TicketType, UserOption } from '../core/models';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
@@ -33,21 +33,36 @@ import { TagInput } from './tag-input';
               @for (s of states; track s) { <option [value]="s">{{ s }}</option> }
             </select>
           </label>
-          <label>Priority
-            <select name="priority" [(ngModel)]="draft.priority">
-              @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
-            </select>
-          </label>
-          <label>Impact
-            <select name="impact" [(ngModel)]="draft.impact">
-              @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
-            </select>
-          </label>
           <label>Type
-            <select name="ticketType" [(ngModel)]="draft.ticketType">
+            <select name="ticketType" [(ngModel)]="draft.ticketType" (ngModelChange)="onTypeChange($event)">
               @for (t of types; track t) { <option [value]="t">{{ t }}</option> }
             </select>
           </label>
+          @if (draft.ticketType === 'Requirement') {
+            <label><span>Priority <span class="muted small">(Optional)</span></span>
+              <select name="priority" [(ngModel)]="draft.priority">
+                <option [ngValue]="null">— None —</option>
+                @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
+              </select>
+            </label>
+            <label><span>Impact <span class="muted small">(Optional)</span></span>
+              <select name="impact" [(ngModel)]="draft.impact">
+                <option [ngValue]="null">— None —</option>
+                @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+          } @else {
+            <label>Priority
+              <select name="priority" [(ngModel)]="draft.priority">
+                @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
+              </select>
+            </label>
+            <label>Impact
+              <select name="impact" [(ngModel)]="draft.impact">
+                @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+          }
         </div>
         <div class="field">
           <label for="create-tags">Tag</label>
@@ -90,6 +105,16 @@ export class TicketCreate {
 
   draft: SaveTicket = { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserIds: [], state: 'Open', priority: 3, impact: 'Medium', tags: [] };
 
+  onTypeChange(newType: TicketType) {
+    if (newType === 'Requirement') {
+      this.draft.priority = null;
+      this.draft.impact = null;
+    } else {
+      this.draft.priority ??= 3;
+      this.draft.impact ??= 'Medium';
+    }
+  }
+
   /**
    * Outsiders the draft assigns to, by name. A method rather than a computed: `draft` is a plain
    * field written only by template event bindings, which already schedule the repaint.
@@ -105,7 +130,15 @@ export class TicketCreate {
     const joined = this.joinedNames();
     this.saving.set(true);
     try {
-      const { id } = await this.api.createTicket({ ...this.draft, title: this.draft.title.trim(), folderId: this.folderId() });
+      const priority = this.draft.priority != null ? Number(this.draft.priority) : null;
+      const impact = this.draft.impact || null;
+      const { id } = await this.api.createTicket({
+        ...this.draft,
+        title: this.draft.title.trim(),
+        folderId: this.folderId(),
+        priority: this.draft.ticketType === 'Requirement' ? priority : (priority ?? 3),
+        impact: this.draft.ticketType === 'Requirement' ? impact : (impact ?? 'Medium'),
+      });
       this.toast.success(joined ? `Ticket created. Added to this project as Contributor: ${joined}.` : 'Ticket created.');
       this.created.emit(id);
     } finally {

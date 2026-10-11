@@ -140,9 +140,9 @@ export class LoginPage implements OnInit {
   private goOn() {
     const target = this.returnUrl();
     // A deep link (a shared ticket, say) is followed straight to its page and skips the launcher;
-    // signing in from the sign-in page itself lands on the launcher, where the two apps are chosen.
+    // signing in from the sign-in page itself lands on the Projects menu.
     // Only in-app paths are followed.
     const deepLink = target && target.startsWith('/') && !target.startsWith('//') ? target : null;
-    this.router.navigateByUrl(deepLink ?? '/home');
+    this.router.navigateByUrl(deepLink ?? '/');
   }
 }

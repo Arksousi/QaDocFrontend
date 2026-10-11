@@ -18,6 +18,7 @@ interface UserDraft {
   role: Role;
   isActive: boolean;
   ticketLimit: number | null;
+  aiPrompt?: string | null;
 }
 
 /** Admin-only: add people, change roles, deactivate, reset passwords. */
@@ -108,6 +109,9 @@ interface UserDraft {
             <input name="ticketLimit" type="number" min="1" max="100" step="1" [(ngModel)]="d.ticketLimit" placeholder="No limit" />
             <small class="muted">Assigning someone past it only warns — it is never refused.</small>
           </label>
+          <label>AI Chat System Prompt <small class="muted">adjust the QA Assistant prompt for this specific user</small>
+            <textarea name="aiPrompt" [(ngModel)]="d.aiPrompt" rows="3" placeholder="e.g. You are a helpful QA Testing Assistant..."></textarea>
+          </label>
           @if (d.userId) {
             <label class="check">
               <input name="isActive" type="checkbox" [(ngModel)]="d.isActive" /> Active (can sign in)
@@ -167,11 +171,11 @@ export class UsersPage implements OnInit {
   }
 
   openAdd() {
-    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Tester', isActive: true, ticketLimit: null });
+    this.draft.set({ userId: 0, username: '', displayName: '', password: '', role: 'Tester', isActive: true, ticketLimit: null, aiPrompt: '' });
   }
 
   openEdit(u: User) {
-    this.draft.set({ userId: u.userId, username: u.username, displayName: u.displayName, password: '', role: u.role, isActive: u.isActive, ticketLimit: u.ticketLimit });
+    this.draft.set({ userId: u.userId, username: u.username, displayName: u.displayName, password: '', role: u.role, isActive: u.isActive, ticketLimit: u.ticketLimit, aiPrompt: u.aiPrompt });
   }
 
   openReset(u: User) {
@@ -198,7 +202,7 @@ export class UsersPage implements OnInit {
     this.busy.set(true);
     try {
       if (d.userId) {
-        await this.api.updateUser(d.userId, { displayName: d.displayName.trim(), role: d.role, isActive: d.isActive, ticketLimit: d.ticketLimit ?? null });
+        await this.api.updateUser(d.userId, { displayName: d.displayName.trim(), role: d.role, isActive: d.isActive, ticketLimit: d.ticketLimit ?? null, aiPrompt: d.aiPrompt ?? null });
         this.toast.success(`${d.displayName.trim()} updated.`);
       } else {
         await this.api.createUser({ username: d.username.trim(), displayName: d.displayName.trim(), password: d.password, role: d.role, ticketLimit: d.ticketLimit ?? null });

@@ -53,11 +53,6 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
               placeholder="e.g. End-to-End Checkout Workflow" />
           </label>
 
-          <label>Application Name *
-            <input name="appName" [(ngModel)]="appName" required maxlength="200"
-              placeholder="e.g. E-Commerce Web Portal" />
-          </label>
-
           <label>Target Language
             <select name="language" [(ngModel)]="language">
               <option value="en">English</option>
@@ -162,7 +157,7 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
           <h3>Review Document Set</h3>
           <div class="review-grid">
             <div class="review-item"><strong>Title:</strong> {{ title }}</div>
-            <div class="review-item"><strong>App Name:</strong> {{ appName }}</div>
+            <div class="review-item"><strong>App Name:</strong> {{ projectName() }}</div>
             <div class="review-item"><strong>Language:</strong> {{ language.toUpperCase() }}</div>
             <div class="review-item"><strong>Logo:</strong> {{ logoFile() ? logoFile()!.name : 'None' }}</div>
             <div class="review-item span-2"><strong>Screens:</strong> {{ shots().length }} screens in sequence</div>
@@ -197,7 +192,7 @@ const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'];
           @if (step() < 4) {
             <button type="button" class="btn btn-primary" (click)="nextStep()" [disabled]="!canProceedNext()">Next</button>
           } @else {
-            <button type="button" class="btn btn-primary" [disabled]="saving() || !title.trim() || !appName.trim()" (click)="save()">
+            <button type="button" class="btn btn-primary" [disabled]="saving() || !title.trim()" (click)="save()">
               @if (saving()) { <span class="spinner" aria-hidden="true"></span> Creating… } @else { Create Doc Set }
             </button>
           }
@@ -214,7 +209,7 @@ export class NewDocSetModal {
   readonly projectName = input.required<string>();
 
   readonly closed = output<void>();
-  readonly created = output<number>();
+  readonly created = output<{ id: number; initialTab: 'screens' }>();
 
   readonly maxImages = MAX_QC_DOCSET_IMAGES;
   readonly step = signal<1 | 2 | 3 | 4>(1);
@@ -223,9 +218,11 @@ export class NewDocSetModal {
   readonly logoDragging = signal(false);
 
   title = '';
-  appName = '';
   language = 'en';
   description = '';
+  
+
+  
 
   readonly logoFile = signal<File | null>(null);
   readonly logoUrl = signal<string | null>(null);
@@ -259,8 +256,8 @@ export class NewDocSetModal {
   }
 
   goToStep(target: 1 | 2 | 3 | 4) {
-    if (target > 1 && (!this.title.trim() || !this.appName.trim())) {
-      this.toast.show('Please provide a title and application name first.');
+    if (target > 1 && !this.title.trim()) {
+      this.toast.show('Please provide a document set title first.');
       return;
     }
     this.step.set(target);
@@ -277,7 +274,7 @@ export class NewDocSetModal {
   }
 
   canProceedNext(): boolean {
-    if (this.step() === 1) return !!this.title.trim() && !!this.appName.trim();
+    if (this.step() === 1) return !!this.title.trim();
     return true;
   }
 
@@ -413,8 +410,8 @@ export class NewDocSetModal {
 
   async save() {
     if (this.saving()) return;
-    if (!this.title.trim() || !this.appName.trim()) {
-      this.toast.show('Please provide a title and application name.');
+    if (!this.title.trim()) {
+      this.toast.show('Please provide a document set title.');
       return;
     }
 
@@ -426,7 +423,7 @@ export class NewDocSetModal {
       const created = await this.api.createQcDocSet(
         this.projectId(),
         this.title.trim(),
-        this.appName.trim(),
+        this.projectName().trim(),
         this.description.trim(),
         this.language,
         this.logoFile(),
@@ -435,7 +432,10 @@ export class NewDocSetModal {
       );
 
       this.toast.show('Documentation set created.');
-      this.created.emit(created.id);
+      this.created.emit({
+        id: created.id,
+        initialTab: 'screens',
+      });
     } catch (err: any) {
       this.toast.show(err?.error?.detail || err?.message || 'Could not create doc set.');
     } finally {
@@ -443,3 +443,6 @@ export class NewDocSetModal {
     }
   }
 }
+
+
+

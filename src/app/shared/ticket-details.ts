@@ -3,7 +3,7 @@ import { Component, computed, effect, inject, input, output, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, TicketComment, UserOption, avatarTone, initials, mentionSegments, slug } from '../core/models';
+import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, Ticket, TicketComment, TicketType, UserOption, avatarTone, initials, mentionSegments, slug } from '../core/models';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
@@ -33,7 +33,7 @@ import { Avatar } from './avatar';
 
             <label class="detail">
               <span class="detail-label">Type</span>
-              <select name="ticketType" [(ngModel)]="form.ticketType" [disabled]="!canEdit()" (ngModelChange)="touch()">
+              <select name="ticketType" [(ngModel)]="form.ticketType" [disabled]="!canEdit()" (ngModelChange)="onTypeChange($event)">
                 @for (tt of types; track tt) { <option [value]="tt">{{ tt }}</option> }
               </select>
             </label>
@@ -65,18 +65,35 @@ import { Avatar } from './avatar';
                 @for (s of states; track s) { <option [value]="s" class="state-text-{{ slugOf(s) }}">{{ s }}</option> }
               </select>
             </label>
-            <label class="detail">
-              <span class="detail-label">Priority</span>
-              <select name="priority" [(ngModel)]="form.priority" [disabled]="!canEdit()" (ngModelChange)="touch()">
-                @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
-              </select>
-            </label>
-            <label class="detail">
-              <span class="detail-label">Impact</span>
-              <select name="impact" [(ngModel)]="form.impact" [disabled]="!canEdit()" (ngModelChange)="touch()">
-                @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
-              </select>
-            </label>
+            @if (form.ticketType === 'Requirement') {
+              <label class="detail">
+                <span class="detail-label"><span>Priority <span class="muted small">(Optional)</span></span></span>
+                <select name="priority" [(ngModel)]="form.priority" [disabled]="!canEdit()" (ngModelChange)="touch()">
+                  <option [ngValue]="null">— None —</option>
+                  @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
+                </select>
+              </label>
+              <label class="detail">
+                <span class="detail-label"><span>Impact <span class="muted small">(Optional)</span></span></span>
+                <select name="impact" [(ngModel)]="form.impact" [disabled]="!canEdit()" (ngModelChange)="touch()">
+                  <option [ngValue]="null">— None —</option>
+                  @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
+                </select>
+              </label>
+            } @else {
+              <label class="detail">
+                <span class="detail-label">Priority</span>
+                <select name="priority" [(ngModel)]="form.priority" [disabled]="!canEdit()" (ngModelChange)="touch()">
+                  @for (p of priorities; track p.value) { <option [ngValue]="p.value">{{ p.value }}</option> }
+                </select>
+              </label>
+              <label class="detail">
+                <span class="detail-label">Impact</span>
+                <select name="impact" [(ngModel)]="form.impact" [disabled]="!canEdit()" (ngModelChange)="touch()">
+                  @for (i of impacts; track i) { <option [value]="i">{{ i }}</option> }
+                </select>
+              </label>
+            }
 
             <div class="detail span-2">
               <label class="detail-label" for="details-tags">Tag</label>
@@ -371,6 +388,14 @@ export class TicketDetails {
     this.version.update((v) => v + 1);
   }
 
+  onTypeChange(newType: TicketType) {
+    if (newType !== 'Requirement') {
+      this.form.priority ??= 3;
+      this.form.impact ??= 'Medium';
+    }
+    this.touch();
+  }
+
   reset() {
     const t = this.ticket();
     if (t) this.load(t);
@@ -464,8 +489,8 @@ function toForm(t: Ticket): SaveTicket {
   });
 }
 
-/** Same shape the server stores, so "dirty" ignores whitespace-only differences. */
 function normalise(f: SaveTicket): SaveTicket {
+  const isReq = f.ticketType === 'Requirement';
   return {
     folderId: f.folderId,
     title: f.title.trim(),
@@ -473,8 +498,8 @@ function normalise(f: SaveTicket): SaveTicket {
     description: (f.description ?? '').trimEnd(),
     assignedToUserIds: [...(f.assignedToUserIds ?? [])],
     state: f.state,
-    priority: Number(f.priority),
-    impact: f.impact,
+    priority: f.priority != null ? Number(f.priority) : (isReq ? null : 3),
+    impact: f.impact || (isReq ? null : 'Medium'),
     tags: [...f.tags],
   };
 }

@@ -67,20 +67,27 @@ let nextId = 0;
   template: `
     <button #trigger type="button" class="picker-trigger" [class.picker-over]="overNow()" [class.picker-open]="open()"
       [disabled]="readonly()" aria-haspopup="listbox" [attr.aria-expanded]="open()" [attr.aria-controls]="listId"
-      [attr.aria-label]="label() + ': ' + (picked() ? nameOf(picked()!) : 'Unassigned')"
-      [title]="picked() ? byLine(picked()!) : 'Unassigned'"
+      [attr.aria-label]="label() + ': ' + (selected().length === 0 ? 'Unassigned' : selected().length === 1 ? nameOf(selected()[0]) : selected().length + ' assigned')"
+      [title]="selected().length === 0 ? 'Unassigned' : selected().length === 1 ? byLine(selected()[0]) : selected().length + ' assigned'"
       (click)="toggle()" (keydown)="onTriggerKey($event)">
-      @if (picked(); as id) {
+      @if (selected().length === 1) {
+          @let id = selected()[0];
         <app-avatar size="sm" [userId]="id" [name]="nameOf(id)" [card]="false" />
         <span class="picker-value">{{ nameOf(id) }}</span>
-      } @else {
+      } @else if (selected().length > 1) {
+          <div class="trigger-multi-avatars">
+            @for (id of selected(); track id) {
+              <app-avatar size="sm" [userId]="id" [name]="nameOf(id)" [card]="false" title="{{ nameOf(id) }}" />
+            }
+          </div>
+        } @else {
         <span class="picker-none-mark" aria-hidden="true"></span>
         <span class="picker-value picker-placeholder">Unassigned</span>
       }
       @if (!readonly()) { <app-icon name="caret" class="picker-caret" /> }
     </button>
     @if (overNow()) {
-      <span class="hint picker-over-hint">{{ nameOf(picked()!) }} is over their ticket limit.</span>
+      <span class="hint picker-over-hint">One or more assignees are over their ticket limit.</span>
     }
 
     @if (open()) {
@@ -109,17 +116,23 @@ let nextId = 0;
               @if (r.user; as u) {
                 <app-avatar size="sm" [userId]="u.userId" [name]="u.displayName" [card]="false" />
                 <span class="picker-name">{{ u.displayName }}</span>
-                <span class="picker-check">@if (isPicked(r)) { <app-icon name="check" /> }</span>
+                <span class="picker-check"><input type="checkbox" [checked]="isPicked(r)" tabindex="-1" style="pointer-events: none; margin: 0; width: 14px; height: 14px; cursor: pointer;"></span>
                 <span class="picker-load picker-load-{{ loadOf(u) }}" [attr.aria-label]="loadText(u)">
                   @if (u.ticketLimit != null) {
                     <span class="picker-bar" aria-hidden="true"><span [style.width.%]="barPct(u)"></span></span>
                   }
                   <span class="picker-count" aria-hidden="true">{{ loadOf(u) === 'full' ? 'Full' : shortLoad(u) }}</span>
                 </span>
-              } @else {
+              } @else if (selected().length > 1) {
+          <div class="trigger-multi-avatars">
+            @for (id of selected(); track id) {
+              <app-avatar size="sm" [userId]="id" [name]="nameOf(id)" [card]="false" title="{{ nameOf(id) }}" />
+            }
+          </div>
+        } @else {
                 <span class="picker-none-mark" aria-hidden="true"></span>
                 <span class="picker-name picker-placeholder">Unassigned</span>
-                <span class="picker-check">@if (isPicked(r)) { <app-icon name="check" /> }</span>
+                <span class="picker-check"><input type="checkbox" [checked]="isPicked(r)" tabindex="-1" style="pointer-events: none; margin: 0; width: 14px; height: 14px; cursor: pointer;"></span>
               }
             </div>
           } @empty {
@@ -156,8 +169,9 @@ export class AssigneePicker {
   readonly active = signal(0);
   readonly placement = signal({ left: 0, width: 0, top: 0, bottom: 0, up: false });
 
+  
   readonly picked = computed<number | null>(() => this.selected()[0] ?? null);
-  private readonly options = computed(() => new Map([...this.members(), ...this.outsiders()].map((u) => [u.userId, u])));
+  readonly options = computed(() => new Map([...this.members(), ...this.outsiders()].map((u) => [u.userId, u])));
   readonly searchable = computed(() => this.members().length + this.outsiders().length >= SEARCH_FROM);
 
   /** Everything the list shows, filtered by the search, in display order. */
@@ -166,7 +180,7 @@ export class AssigneePicker {
     const match = (u: UserOption) => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
     const rows: Row[] = q ? [] : [{ user: null, group: 'none' }];
     // Still on the ticket but in neither list (they lost access): listed, so it still says who has it.
-    const id = this.picked();
+    const id = this.selected()[0] ?? null;
     if (id !== null && !this.options().has(id)) {
       const former: UserOption = { userId: id, displayName: this.nameOf(id), username: '', openTickets: 0, ticketLimit: null };
       if (match(former)) rows.push({ user: former, group: 'members' });
@@ -180,7 +194,7 @@ export class AssigneePicker {
 
   /** Whether the pick, once saved, leaves them over their limit. Someone already on it is already counted. */
   readonly overNow = computed(() => {
-    const id = this.picked();
+    const id = this.selected()[0] ?? null;
     const u = id === null ? undefined : this.options().get(id);
     return exceedsWith(u, this.current().some((a) => a.userId === id));
   });
@@ -194,9 +208,7 @@ export class AssigneePicker {
     return group === 'members' ? 'On this project' : 'Add to project as Contributor';
   }
 
-  isPicked(r: Row) {
-    return (r.user?.userId ?? null) === this.picked();
-  }
+  isPicked(r: Row) { return r.user ? this.selected().includes(r.user.userId) : this.selected().length === 0; }
 
   nameOf(id: number) {
     return this.options().get(id)?.displayName ?? this.current().find((a) => a.userId === id)?.displayName ?? `User #${id}`;
@@ -266,8 +278,18 @@ export class AssigneePicker {
   }
 
   choose(r: Row) {
-    this.selected.set(r.user ? [r.user.userId] : []);
-    this.close();
+    if (!r.user) {
+      this.selected.set([]);
+      this.close();
+      return;
+    }
+    const id = r.user.userId;
+    const current = this.selected();
+    if (current.includes(id)) {
+      this.selected.set(current.filter(x => x !== id));
+    } else {
+      this.selected.set([...current, id]);
+    }
   }
 
   onSearch(event: Event) {
@@ -341,3 +363,7 @@ export class AssigneePicker {
     });
   }
 }
+
+
+
+

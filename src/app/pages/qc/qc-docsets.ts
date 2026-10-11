@@ -27,8 +27,8 @@ import { NewDocSetModal } from './new-docset';
     <main class="page">
       <div class="page-header">
         <div>
-          <h1>QC Generator</h1>
-          <p class="muted">Upload sequenced screenshots and logo to produce product documentation and task-oriented user manuals.</p>
+          <h1>Docs Generator</h1>
+          <p class="muted">Upload sequenced screenshots and logo to produce Software Documentation and User Manuals.</p>
         </div>
       </div>
 
@@ -46,7 +46,7 @@ import { NewDocSetModal } from './new-docset';
         <div class="card empty">
           <h2>No projects yet</h2>
           <p>A documentation set belongs to a project, so there is nothing to generate for until one exists.</p>
-          <a class="btn btn-primary" routerLink="/">Go to Q Desk</a>
+          <a class="btn btn-primary" routerLink="/">Go to Projects</a>
         </div>
       } @else {
         <div class="toolbar">
@@ -198,8 +198,13 @@ export class QcDocSetsPage implements OnInit {
     }
   }
 
-  onCreated(newDocSetId: number) {
+  onCreated(res: { id: number; initialTab?: string } | number) {
     this.adding.set(false);
-    this.router.navigate(['/q/qc', newDocSetId]);
+    const id = typeof res === 'number' ? res : res.id;
+    const initialTab = typeof res === 'object' ? res.initialTab : undefined;
+    this.router.navigate(['/q/qc', id], {
+      queryParams: initialTab ? { tab: initialTab } : undefined,
+    });
   }
 }
+

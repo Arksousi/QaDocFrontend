@@ -6,10 +6,11 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService, TestCasePatch } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ConfirmService } from '../../core/confirm.service';
-import { TestCase, TestCaseStatus, TestSuite, TEST_CATEGORIES, TEST_STATUSES, slug } from '../../core/models';
+import { CrawlJobResponse, TestCase, TestCaseStatus, TestSuite, TEST_CATEGORIES, TEST_STATUSES, slug } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { Topbar } from '../../shared/topbar';
+import { NewSuite } from './new-suite';
 
 /** Filters start here, and "All" is what an empty filter means. */
 const ALL = 'All';
@@ -23,7 +24,7 @@ const ALL = 'All';
  */
 @Component({
   selector: 'app-suite',
-  imports: [FormsModule, DatePipe, RouterLink, Topbar, Icon],
+  imports: [FormsModule, DatePipe, RouterLink, Topbar, Icon, NewSuite],
   template: `
     <app-topbar />
 
@@ -35,17 +36,19 @@ const ALL = 'All';
         <div class="card empty">
           <h2>Suite not found</h2>
           <p>It may have been deleted, or it belongs to a project you cannot see.</p>
-          <a class="btn btn-primary" routerLink="/q/qa">Back to QA Generator</a>
+          <a class="btn btn-primary" routerLink="/q/qa">Back to TC Generator</a>
         </div>
       } @else {
         @let s = suite()!;
-        <a class="back-link" routerLink="/q/qa" [queryParams]="{ project: s.projectId }">
-          <app-icon name="back" /><span>QA Generator</span>
-        </a>
-
         <div class="page-header">
           <div class="suite-head">
-            <h1>{{ s.title }}</h1>
+            <div class="suite-title-row">
+              <a class="btn-back-circle" routerLink="/q/qa" [queryParams]="{ project: s.projectId }"
+                aria-label="Back to TC Generator" title="Back to TC Generator">
+                <app-icon name="back" />
+              </a>
+              <h1>{{ s.title }}</h1>
+            </div>
             <p class="muted">
               <span class="id-chip">{{ s.projectCode }}</span>
               {{ s.projectName }}
@@ -58,6 +61,140 @@ const ALL = 'All';
             }
           </div>
         </div>
+
+        @if (activeJob(); as job) {
+          <section class="crawl-banner"
+            [class.is-done]="job.status === 'Done'"
+            [class.is-running]="['Queued', 'Crawling', 'Generating'].includes(job.status)"
+            [class.is-failed]="job.status === 'Failed' || job.status === 'Cancelled'"
+            aria-label="Crawl Progress">
+            <div class="crawl-banner-bar">
+              <div class="crawl-bar-main">
+                <span class="crawl-status-pill">
+                  @if (job.status === 'Done') {
+                    <app-icon name="check" />
+                  } @else if (job.status === 'Failed' || job.status === 'Cancelled') {
+                    <app-icon name="alert" />
+                  } @else {
+                    <span class="crawl-pulse-dot" aria-hidden="true"></span>
+                  }
+                  <span>{{ job.status }}</span>
+                </span>
+                <a class="crawl-target-url" [href]="job.startUrl" target="_blank" rel="noopener noreferrer" [title]="job.startUrl">
+                  {{ job.startUrl }}
+                </a>
+              </div>
+              @if (['Queued', 'Crawling', 'Generating'].includes(job.status) && canEdit()) {
+                <button class="btn btn-ghost btn-sm crawl-cancel-btn" type="button" (click)="cancelJob(job.jobId)">
+                  Cancel crawl
+                </button>
+              } @else if ((job.status === 'Failed' || job.status === 'Cancelled' || job.pagesFound === 0) && canEdit()) {
+                <button class="btn btn-ghost btn-sm crawl-cancel-btn" type="button" (click)="editingSettings.set(true)">
+                  Edit & Re-crawl
+                </button>
+              }
+            </div>
+
+            <div class="crawl-details-row">
+              <div class="crawl-stat-item">
+                <span class="stat-number">{{ job.pagesFound }}</span>
+                <span class="stat-label">pages discovered</span>
+              </div>
+              <span class="stat-dot" aria-hidden="true">•</span>
+              <div class="crawl-stat-item">
+                <span class="stat-number">{{ job.pagesDone }}</span>
+                <span class="stat-label">pages generated</span>
+              </div>
+              <span class="stat-dot" aria-hidden="true">•</span>
+              <div class="crawl-stat-item">
+                <span class="stat-number">{{ job.clicksTried }}</span>
+                <span class="stat-label">clicks tested</span>
+              </div>
+              <span class="stat-dot" aria-hidden="true">•</span>
+              <div class="crawl-stat-item">
+                <span class="stat-number">{{ job.clicksSkipped }}</span>
+                <span class="stat-label">safe skipped</span>
+              </div>
+            </div>
+
+            @if (job.error) {
+              <div class="crawl-error-row">
+                <app-icon name="alert" />
+                <span>{{ job.error }}</span>
+              </div>
+            }
+          </section>
+        }
+
+        @if (showCoverage() && activeJob()?.coverage; as cov) {
+          <section class="card coverage-card" aria-labelledby="coverage-heading">
+            <div class="card-head">
+              <h2 id="coverage-heading" class="section-title">Crawler Coverage Report</h2>
+              <button class="btn btn-ghost btn-sm" type="button" (click)="showCoverage.set(false)">Close</button>
+            </div>
+            <h3>Discovered Pages ({{ cov.pages.length }})</h3>
+            <div class="table-wrap">
+              <table class="table tc-table">
+                <thead>
+                  <tr>
+                    <th>URL</th>
+                    <th>Title</th>
+                    <th>Forms</th>
+                    <th>Inputs</th>
+                    <th>Buttons</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of cov.pages; track p.url) {
+                    <tr>
+                      <td class="mono small">{{ p.url }}</td>
+                      <td>{{ p.title }}</td>
+                      <td>{{ p.formsCount }}</td>
+                      <td>{{ p.inputsCount }}</td>
+                      <td>{{ p.buttonsCount }}</td>
+                      <td>
+                        @if (p.possiblyEmpty) {
+                          <span class="muted small">Empty</span>
+                        } @else if (p.generated) {
+                          <span class="badge">Generated</span>
+                        } @else {
+                          <span class="muted small">Discovered</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            @if (cov.skippedActions.length) {
+              <h3 style="margin-top: 1rem;">Skipped Dangerous Actions ({{ cov.skippedActions.length }})</h3>
+              <div class="table-wrap">
+                <table class="table tc-table">
+                  <thead>
+                    <tr>
+                      <th>URL</th>
+                      <th>Element</th>
+                      <th>Label / Text</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (a of cov.skippedActions; track $index) {
+                      <tr>
+                        <td class="mono small">{{ a.url }}</td>
+                        <td>{{ a.element }}</td>
+                        <td>{{ a.text }}</td>
+                        <td class="muted small">{{ a.reason }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </section>
+        }
 
         <!-- Screenshots first: they are the evidence every case below is supposed to come from. -->
         @if (s.screens.length) {
@@ -84,17 +221,36 @@ const ALL = 'All';
           </div>
 
           <div class="push-left tc-actions">
+            @if (canEdit()) {
+              <button class="btn btn-ghost" type="button" (click)="editingSettings.set(true)">
+                Edit crawl settings
+              </button>
+            }
+            @if (activeJob()?.coverage) {
+              <button class="btn btn-ghost" type="button" (click)="showCoverage.set(!showCoverage())">
+                Coverage Report
+              </button>
+            }
+            @if (activeJob(); as job) {
+              @if (canEdit() && ['Done', 'Failed', 'Cancelled'].includes(job.status)) {
+                <button class="btn btn-ghost" type="button" (click)="regenerateJob(job.jobId)" [disabled]="busyGenerate()">
+                  Regenerate cases
+                </button>
+              }
+            }
             <button class="btn btn-ghost" type="button" (click)="toggleImport()" [attr.aria-expanded]="showImport()">
               Import / Manual
             </button>
             @if (canEdit()) {
-              <button class="btn btn-primary" type="button" (click)="generate()" [disabled]="busyGenerate() || !s.screens.length">
-                @if (busyGenerate()) {
-                  <span class="spinner" aria-hidden="true"></span> Generating…
-                } @else {
-                  Generate with AI
-                }
-              </button>
+              @if (s.screens.length) {
+                <button class="btn btn-primary" type="button" (click)="generate()" [disabled]="busyGenerate() || !s.screens.length">
+                  @if (busyGenerate()) {
+                    <span class="spinner" aria-hidden="true"></span> Generating…
+                  } @else {
+                    Generate with AI
+                  }
+                </button>
+              }
             }
           </div>
         </div>
@@ -147,6 +303,7 @@ const ALL = 'All';
                 </button>
               }
             </div>
+            <span class="toolbar-sep" aria-hidden="true"></span>
             <label class="sr-only" for="tcCategory">Category</label>
             <select id="tcCategory" class="filter-select" [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event)">
               <option [value]="ALL">All categories</option>
@@ -166,8 +323,18 @@ const ALL = 'All';
             <div class="empty">
               @if (s.cases.length === 0) {
                 <h3>No test cases yet</h3>
+                @if (activeJob()?.error; as error) {
+                  <p class="error-note" style="justify-content: center; margin-top: 0.5rem;"><app-icon name="alert" /> {{ error }}</p>
+                }
                 @if (canEdit()) {
-                  <p>Generate them from the screenshots, or paste a reply from any chat AI.</p>
+                  @if (activeJob()?.pagesFound) {
+                    <p>Pages were discovered, but generation has not run or was interrupted.</p>
+                    <button class="btn btn-primary" type="button" (click)="regenerateJob(activeJob()!.jobId)" [disabled]="busyGenerate()">
+                      Generate test cases
+                    </button>
+                  } @else {
+                    <p>Generate them by crawling a site or uploading HTML files, or paste a reply from any chat AI.</p>
+                  }
                 } @else {
                   <p>Nobody has added cases to this suite yet.</p>
                 }
@@ -272,6 +439,14 @@ const ALL = 'All';
                                 <span>Expected result</span>
                                 <textarea rows="3" [(ngModel)]="d.expected" [disabled]="!canEdit()"></textarea>
                               </label>
+                              @if (c.sourceUrl) {
+                                <div class="field span-2">
+                                  <span>Source URL</span>
+                                  <a class="link-btn mono" [href]="c.sourceUrl" target="_blank" rel="noopener noreferrer">
+                                    {{ c.sourceUrl }}
+                                  </a>
+                                </div>
+                              }
                             </div>
                             @if (canEdit()) {
                               <div class="tc-detail-actions">
@@ -294,6 +469,13 @@ const ALL = 'All';
         </section>
       }
     </main>
+
+    @if (editingSettings() && suite(); as s) {
+      <app-new-suite [projectId]="s.projectId" [projectName]="s.projectName" [suite]="s"
+        (closed)="editingSettings.set(false)"
+        (updated)="onSuiteSettingsUpdated($event)"
+        (crawlStarted)="onCrawlStarted($event)" />
+    }
   `,
 })
 export class SuitePage implements OnInit {
@@ -315,6 +497,21 @@ export class SuitePage implements OnInit {
   readonly busyGenerate = signal(false);
   readonly generateError = signal<string | null>(null);
   readonly busyRow = signal<number | null>(null);
+
+  readonly activeJob = signal<CrawlJobResponse | null>(null);
+  readonly showCoverage = signal(false);
+  readonly editingSettings = signal(false);
+
+  onSuiteSettingsUpdated(updated: TestSuite) {
+    this.suite.set(updated);
+    void this.loadLatestJob(updated.suiteId);
+  }
+
+  onCrawlStarted(event: { jobId: string; suiteId: number }) {
+    this.editingSettings.set(false);
+    void this.loadSuite(event.suiteId);
+    void this.pollJob(event.jobId);
+  }
 
   readonly showImport = signal(false);
   readonly prompt = signal('');
@@ -375,12 +572,75 @@ export class SuitePage implements OnInit {
 
   async ngOnInit() {
     const id = Number(this.route.snapshot.paramMap.get('suiteId'));
+    await this.loadSuite(id);
+    const jobId = this.route.snapshot.queryParamMap.get('job');
+    if (jobId) {
+      void this.pollJob(jobId);
+    } else if (id) {
+      void this.loadLatestJob(id);
+    }
+  }
+
+  async loadLatestJob(suiteId: number) {
     try {
-      this.suite.set(await this.api.testSuite(id));
+      const job = await this.api.latestCrawlJobForSuite(suiteId);
+      if (job) {
+        this.activeJob.set(job);
+        if (['Queued', 'Crawling', 'Generating'].includes(job.status)) {
+          void this.pollJob(job.jobId);
+        }
+      }
+    } catch {
+      // not a crawl-based suite or no crawl job found
+    }
+  }
+
+  async loadSuite(id?: number) {
+    const suiteId = id ?? this.suite()?.suiteId;
+    if (!suiteId) return;
+    try {
+      this.suite.set(await this.api.testSuite(suiteId));
     } catch {
       this.suite.set(null); // the interceptor has already said why
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async pollJob(jobId: string) {
+    try {
+      const job = await this.api.crawlJob(jobId);
+      this.activeJob.set(job);
+      if (['Queued', 'Crawling', 'Generating'].includes(job.status)) {
+        setTimeout(() => void this.pollJob(jobId), 2000);
+      } else {
+        await this.loadSuite();
+        if (job.status === 'Done') {
+          this.toast.success(`Crawl complete! Discovered ${job.pagesFound} pages.`);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async cancelJob(jobId: string) {
+    try {
+      await this.api.cancelCrawlJob(jobId);
+      this.toast.show('Crawl job cancelled.');
+      await this.pollJob(jobId);
+    } catch {
+      // ignore
+    }
+  }
+
+  async regenerateJob(jobId: string) {
+    try {
+      await this.api.regenerateCrawlJob(jobId);
+      this.toast.success('Regeneration started.');
+      void this.pollJob(jobId);
+    } catch (err: any) {
+      this.toast.error(err?.error?.detail || err?.message || 'Failed to regenerate.');
     }
   }
 

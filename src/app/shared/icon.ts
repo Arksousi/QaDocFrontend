@@ -36,6 +36,7 @@ export type IconName =
   | 'logout'
   | 'apps'
   | 'testcase'
+  | 'calendar'
   | 'share';
 
 /**
@@ -136,6 +137,10 @@ export type IconName =
           <rect x="3" y="2.6" width="10" height="11.2" rx="1.6" />
           <path d="M6.1 2.6V4h3.8V2.6" />
           <path d="M5.6 8.7 7.2 10.3l3.2-3.4" />
+        }
+        @case ('calendar') {
+          <rect x="2" y="3.2" width="12" height="10.8" rx="1.6" />
+          <path d="M2 6.8h12M4.8 1.8v2.6M11.2 1.8v2.6" />
         }
         @case ('share') {
           <path d="M4 12v1a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-1M8 2v8M5 5l3-3 3 3" />

@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { quiet } from './toast.service';
-import { AppNotification, Attachment, AvatarVersion, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, QcDocScreen, QcDocSet, QcDocument, QcJobStatus, Role, SaveTicket, Suggestions, TestCase, TestSuite, Ticket, TicketComment, TicketSearchResult, User, UserCard, UserOption, UserWorkload } from './models';
+import { AppNotification, Attachment, AvatarVersion, CrawlJobResponse, Folder, ProfileUpdate, Project, ProjectMember, ProjectRole, ProjectScoreboard, QcDocScreen, QcDocSet, QcDocument, QcJobStatus, Role, SaveTicket, StartCrawlRequest, Suggestions, TestCase, TestSuite, Ticket, TicketComment, TicketSearchResult, User, UserCard, UserOption, UserWorkload } from './models';
 
 interface Created {
   id: number;
@@ -19,6 +19,8 @@ export interface TicketFilters {
   /** A ticket carrying any one of these tags matches; empty means every tag. */
   tags?: string[];
   assignedTo?: number | null;
+  fromDate?: string | null;
+  toDate?: string | null;
 }
 
 /** The API names its repeatable filters in the singular: ?state=Open&state=Retest. */
@@ -29,6 +31,9 @@ const REPEATED_AS: Record<string, string> = { states: 'state', types: 'type', ta
 export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.apiUrl;
+
+  // AI Chat
+  sendAiChatMessage = (messages: { role: string; content: string }[]) => firstValueFrom(this.http.post<{ role: 'assistant'; content: string }>(`${this.base}/aichat/chat`, { messages }));
 
   // Project Menu
   projects = () => firstValueFrom(this.http.get<Project[]>(`${this.base}/projects`));
@@ -126,7 +131,7 @@ export class ApiService {
   users = () => firstValueFrom(this.http.get<User[]>(`${this.base}/users`));
   createUser = (u: { username: string; displayName: string; password: string; role: Role; ticketLimit: number | null }) =>
     firstValueFrom(this.http.post<Created>(`${this.base}/users`, u));
-  updateUser = (id: number, u: { displayName: string; role: Role; isActive: boolean; ticketLimit: number | null }) =>
+  updateUser = (id: number, u: { displayName: string; role: Role; isActive: boolean; ticketLimit: number | null; aiPrompt: string | null }) =>
     firstValueFrom(this.http.put<void>(`${this.base}/users/${id}`, u));
   /** The avatar hover card. Admins and Leaders. */
   userCard = (id: number) => firstValueFrom(this.http.get<UserCard>(`${this.base}/users/${id}/card`, { context: quiet() }));
@@ -162,6 +167,8 @@ export class ApiService {
     for (const image of images) body.append('images', image);
     return firstValueFrom(this.http.post<Created>(`${this.base}/projects/${projectId}/testsuites`, body));
   };
+  updateTestSuite = (id: number, body: { title: string; description?: string | null; startUrl?: string | null }) =>
+    firstValueFrom(this.http.put<TestSuite>(`${this.base}/testsuites/${id}`, body));
   deleteTestSuite = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/testsuites/${id}`));
   /** Calls the configured provider and saves the reply as Draft. */
   generateTestCases = (id: number, options: GenerateCasesOptions = {}) =>
@@ -169,6 +176,26 @@ export class ApiService {
   /** The manual route: JSON pasted from any chat AI, saved as Draft with source Imported. */
   importTestCases = (id: number, json: string) =>
     firstValueFrom(this.http.post<TestCase[]>(`${this.base}/testsuites/${id}/import`, { json }));
+
+  // QA Site Crawl & Generation
+  startCrawlJob = (req: StartCrawlRequest) =>
+    firstValueFrom(this.http.post<{ jobId: string; suiteId: number; status: string }>(`${this.base}/qa/crawl-jobs`, req));
+  crawlJob = (jobId: string) =>
+    firstValueFrom(this.http.get<CrawlJobResponse>(`${this.base}/qa/crawl-jobs/${jobId}`));
+  latestCrawlJobForSuite = (suiteId: number) =>
+    firstValueFrom(this.http.get<CrawlJobResponse>(`${this.base}/qa/crawl-jobs/suite/${suiteId}`));
+  cancelCrawlJob = (jobId: string) =>
+    firstValueFrom(this.http.post<{ success: boolean }>(`${this.base}/qa/crawl-jobs/${jobId}/cancel`, {}));
+  regenerateCrawlJob = (jobId: string) =>
+    firstValueFrom(this.http.post<{ jobId: string; status: string; success: boolean }>(`${this.base}/qa/crawl-jobs/${jobId}/regenerate`, {}));
+  uploadCrawlHtml = (projectId: number, suiteTitle: string, notes: string | undefined, files: File[]) => {
+    const body = new FormData();
+    body.append('projectId', String(projectId));
+    body.append('suiteTitle', suiteTitle);
+    if (notes) body.append('notes', notes);
+    for (const f of files) body.append('files', f);
+    return firstValueFrom(this.http.post<{ jobId: string; suiteId: number; status: string }>(`${this.base}/qa/crawl-jobs/upload-html`, body));
+  };
   testSuitePrompt = (id: number, maxCases?: number) =>
     firstValueFrom(
       this.http.get<{ prompt: string }>(

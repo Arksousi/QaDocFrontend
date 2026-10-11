@@ -11,25 +11,25 @@ export const authGuard: CanActivateFn = (_route, state) => {
   return auth.user() ? true : inject(Router).createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
 };
 
-/** Where a signed-in user goes when the page is not for them: the launcher, not a specific app. */
+/** Where a signed-in user goes when the page is not for them: the project menu. */
 export const adminGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
-  return auth.isAdmin() ? true : inject(Router).createUrlTree(['/home']);
+  return auth.isAdmin() ? true : inject(Router).createUrlTree(['/']);
 };
 
 export const leaderGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
-  return auth.canLead() ? true : inject(Router).createUrlTree(['/home']);
+  return auth.canLead() ? true : inject(Router).createUrlTree(['/']);
 };
 
 /** The Login page is pointless when already signed in. */
 export const guestGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
-  return auth.user() ? inject(Router).createUrlTree(['/home']) : true;
+  return auth.user() ? inject(Router).createUrlTree(['/']) : true;
 };
 
 /** A real account only: a guest tour has no profile to show or edit. */
 export const accountGuard: CanActivateFn = () => {
   const auth = inject(AuthService);
-  return auth.user() && !auth.isGuest() ? true : inject(Router).createUrlTree(['/home']);
+  return auth.user() && !auth.isGuest() ? true : inject(Router).createUrlTree(['/']);
 };

@@ -24,7 +24,12 @@ import { ProjectMembers } from './project-members';
     </app-topbar>
 
     <main class="page">
-      <h1>Projects</h1>
+      <div class="page-header">
+        <div>
+          <h1>Projects</h1>
+          <p class="muted">Manage your workspaces, track open tickets, and oversee team members.</p>
+        </div>
+      </div>
 
       @if (loading()) {
         <!-- Holds the shape of what is coming — the card strip, then the table — so the page does
@@ -44,6 +49,7 @@ import { ProjectMembers } from './project-members';
           <h2>No projects yet</h2>
           @if (auth.canLead()) {
             <p>Add a project to start tracking tickets.</p>
+            <button class="btn btn-primary" (click)="adding.set(true)"><app-icon name="plus" /> Add project</button>
           } @else {
             <p>Once someone adds you to a project, it will show up here.</p>
           }

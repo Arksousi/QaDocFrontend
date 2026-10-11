@@ -28,6 +28,14 @@ import { TicketType } from '../core/models';
         <path d="M6.3 12.2h3.4M6.9 13.7h2.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" />
         <path d="M8 .9v.9M13.4 3.3l-.7.6M2.6 3.3l.7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" />
       </svg>
+    } @else if (type() === 'Requirement') {
+      <!-- A requirement document sheet with checklist bullets and item lines -->
+      <svg class="type-icon type-requirement" viewBox="0 0 16 16" role="img" [attr.aria-label]="label()">
+        <title>{{ label() }}</title>
+        <rect x="2.5" y="1.5" width="11" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3" />
+        <path d="M5.2 4.8h.01M5.2 8h.01M5.2 11.2h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none" />
+        <path d="M7.4 4.8h3.4M7.4 8h3.4M7.4 11.2h2.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" fill="none" />
+      </svg>
     } @else {
       <!-- A beetle seen from above: antennae, head, a rounded shell split down the middle, and
            three stubby legs a side. The body is deliberately large and the legs short: longer,

@@ -29,8 +29,8 @@ import { NewSuite } from './new-suite';
     <main class="page">
       <div class="page-header">
         <div>
-          <h1>QA Generator</h1>
-          <p class="muted">Screenshots in, test cases out — reviewed, approved, run, and filed as Q Desk tickets.</p>
+          <h1>TC Generator</h1>
+          <p class="muted">Crawl a site or upload HTML files to generate test cases — reviewed, approved, run, and filed as Q Desk tickets.</p>
         </div>
       </div>
 
@@ -48,7 +48,7 @@ import { NewSuite } from './new-suite';
         <div class="card empty">
           <h2>No projects yet</h2>
           <p>A suite belongs to a project, so there is nothing to generate for until one exists.</p>
-          <a class="btn btn-primary" routerLink="/">Go to Q Desk</a>
+          <a class="btn btn-primary" routerLink="/">Go to Projects</a>
         </div>
       } @else {
         <div class="toolbar">
@@ -92,6 +92,7 @@ import { NewSuite } from './new-suite';
                       [attr.aria-label]="'Actions for ' + s.title"><app-icon name="more" /></button>
                     @if (menuKey() === s.suiteId) {
                       <div class="menu" role="menu">
+                        <button role="menuitem" (click)="openEdit(s)">Edit crawl settings…</button>
                         <button role="menuitem" class="danger" (click)="askDelete(s)">Delete suite…</button>
                       </div>
                     }
@@ -106,7 +107,14 @@ import { NewSuite } from './new-suite';
 
     @if (adding() && project(); as p) {
       <app-new-suite [projectId]="p.projectId" [projectName]="p.projectName"
-        (closed)="adding.set(false)" (created)="openSuite($event)" />
+        (closed)="adding.set(false)" (created)="openSuite($event)"
+        (crawlStarted)="onCrawlStarted($event)" />
+    }
+
+    @if (editingSuite(); as es) {
+      <app-new-suite [projectId]="es.projectId" [projectName]="project()?.projectName ?? es.projectName" [suite]="es"
+        (closed)="editingSuite.set(null)" (updated)="onSuiteUpdated()"
+        (crawlStarted)="editingSuite.set(null); onCrawlStarted($event)" />
     }
   `,
 })
@@ -127,6 +135,7 @@ export class TestCasesPage implements OnInit {
   readonly loading = signal(true);
   readonly suitesLoading = signal(false);
   readonly adding = signal(false);
+  readonly editingSuite = signal<TestSuite | null>(null);
   /** Which ⋯ menu is open, or null. */
   readonly menuKey = signal<number | null>(null);
 
@@ -169,6 +178,19 @@ export class TestCasesPage implements OnInit {
 
   openSuite(suiteId: number) {
     this.router.navigate(['/q/qa', suiteId]);
+  }
+
+  openEdit(suite: TestSuite) {
+    this.menuKey.set(null);
+    this.editingSuite.set(suite);
+  }
+
+  async onSuiteUpdated() {
+    await this.loadSuites();
+  }
+
+  onCrawlStarted(event: { jobId: string; suiteId: number }) {
+    this.router.navigate(['/q/qa', event.suiteId], { queryParams: { job: event.jobId } });
   }
 
   toggleMenu(suite: TestSuite) {
