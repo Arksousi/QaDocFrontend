@@ -6,9 +6,10 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService, TestCasePatch } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { ConfirmService } from '../../core/confirm.service';
-import { CrawlJobResponse, TestCase, TestCaseStatus, TestSuite, TEST_CATEGORIES, TEST_STATUSES, slug } from '../../core/models';
+import { CrawlJobResponse, Folder, TestCase, TestCaseStatus, TestSuite, TEST_CATEGORIES, TEST_STATUSES, canManageMembers, slug } from '../../core/models';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
+import { Modal } from '../../shared/modal';
 import { Topbar } from '../../shared/topbar';
 import { NewSuite } from './new-suite';
 
@@ -24,7 +25,7 @@ const ALL = 'All';
  */
 @Component({
   selector: 'app-suite',
-  imports: [FormsModule, DatePipe, RouterLink, Topbar, Icon, NewSuite],
+  imports: [FormsModule, DatePipe, RouterLink, Topbar, Icon, Modal, NewSuite],
   template: `
     <app-topbar />
 
@@ -80,9 +81,15 @@ const ALL = 'All';
                   }
                   <span>{{ job.status }}</span>
                 </span>
-                <a class="crawl-target-url" [href]="job.startUrl" target="_blank" rel="noopener noreferrer" [title]="job.startUrl">
-                  {{ job.startUrl }}
-                </a>
+                @if (job.startUrl.startsWith('http://') || job.startUrl.startsWith('https://')) {
+                  <a class="crawl-target-url" [href]="job.startUrl" target="_blank" rel="noopener noreferrer" [title]="job.startUrl">
+                    {{ job.startUrl }}
+                  </a>
+                } @else {
+                  <span class="crawl-target-url" [title]="job.startUrl">
+                    {{ job.startUrl.replace('doc://', '').replace('local://', '') }}
+                  </span>
+                }
               </div>
               @if (['Queued', 'Crawling', 'Generating'].includes(job.status) && canEdit()) {
                 <button class="btn btn-ghost btn-sm crawl-cancel-btn" type="button" (click)="cancelJob(job.jobId)">
@@ -397,12 +404,12 @@ const ALL = 'All';
                           @for (status of statuses; track status) { <option [value]="status">{{ status }}</option> }
                         </select>
                       </td>
-                      <td><span class="tc-source" [class.tc-source-ai]="c.source === 'Ai'">{{ sourceLabel(c) }}</span></td>
-                      <td>
+                      <td><span class="tc-source" [class.tc-source-ai]="c.source === 'Ai' || c.source === 'Doc' || c.sourceUrl?.startsWith('doc://')">{{ sourceLabel(c) }}</span></td>
+                      <td class="nowrap">
                         @if (c.linkedTicketId && c.linkedTicketKey) {
-                          <a [routerLink]="['/projects', s.projectId]" [queryParams]="{ ticket: c.linkedTicketId }">{{ c.linkedTicketKey }}</a>
+                          <a class="tc-ticket-link" [routerLink]="['/projects', s.projectId]" [queryParams]="{ ticket: c.linkedTicketId }">{{ c.linkedTicketKey }}</a>
                         } @else if (canEdit()) {
-                          <button type="button" class="btn btn-sm btn-ghost" (click)="createTicket(c)"
+                          <button type="button" class="btn btn-sm btn-ghost" (click)="openCreateTicketModal(c)"
                             [disabled]="c.status !== 'Failed' || busyRow() === c.testCaseId"
                             [title]="c.status === 'Failed' ? 'Create a Bug from this case' : 'Only a Failed case can become a ticket'">
                             {{ busyRow() === c.testCaseId ? 'Creating…' : 'Create ticket' }}
@@ -441,10 +448,14 @@ const ALL = 'All';
                               </label>
                               @if (c.sourceUrl) {
                                 <div class="field span-2">
-                                  <span>Source URL</span>
-                                  <a class="link-btn mono" [href]="c.sourceUrl" target="_blank" rel="noopener noreferrer">
-                                    {{ c.sourceUrl }}
-                                  </a>
+                                  <span>{{ c.sourceUrl.startsWith('doc://') ? 'Source Document' : 'Source URL' }}</span>
+                                  @if (c.sourceUrl.startsWith('http://') || c.sourceUrl.startsWith('https://')) {
+                                    <a class="link-btn mono" [href]="c.sourceUrl" target="_blank" rel="noopener noreferrer">
+                                      {{ c.sourceUrl }}
+                                    </a>
+                                  } @else {
+                                    <span class="mono small">{{ c.sourceUrl.replace('doc://', '').replace('local://', '') }}</span>
+                                  }
                                 </div>
                               }
                             </div>
@@ -470,6 +481,100 @@ const ALL = 'All';
       }
     </main>
 
+    @if (ticketModalCase(); as tc) {
+      @let s = suite()!;
+      <app-modal [heading]="'Create ticket · ' + tc.caseKey" (closed)="closeTicketModal()">
+        <div class="tc-ticket-modal">
+          <div class="tc-ticket-case-preview">
+            <div class="tc-ticket-case-meta">
+              <span class="id-chip">{{ tc.caseKey }}</span>
+              <span class="tc-cat-pill tc-cat-{{ slug(tc.category) }}">{{ tc.category }}</span>
+              <span class="muted small">Priority {{ tc.priority }}</span>
+            </div>
+            <p class="tc-ticket-case-title">{{ tc.title }}</p>
+          </div>
+
+          <div class="tc-folder-picker">
+            <div class="tc-folder-picker-head">
+              <span class="field-label">Select destination folder</span>
+              @if (canManageFolders()) {
+                <button type="button" class="btn btn-ghost btn-sm tc-new-folder-toggle" (click)="toggleAddFolderInModal()">
+                  <app-icon [name]="addingFolderInModal() ? 'close' : 'plus'" />
+                  {{ addingFolderInModal() ? 'Cancel' : 'New folder' }}
+                </button>
+              }
+            </div>
+
+            @if (addingFolderInModal()) {
+              <div class="tc-new-folder-box">
+                <div class="tc-new-folder-grid">
+                  <label class="field">
+                    <span>Folder name *</span>
+                    <input name="newFolderName" [(ngModel)]="newFolderName" maxlength="150"
+                      placeholder="e.g. Sprint 1 or Auth" (ngModelChange)="suggestModalFolderCode()" />
+                  </label>
+                  <label class="field">
+                    <span>Code *</span>
+                    <input name="newFolderCode" [(ngModel)]="newFolderCode" maxlength="10"
+                      placeholder="e.g. SP1" (ngModelChange)="newFolderCode = $event.toUpperCase(); folderCodeTouched = true" />
+                  </label>
+                </div>
+                <div class="tc-new-folder-foot">
+                  <span class="hint">Keys will look like <span class="mono">{{ s.projectCode }}-{{ newFolderCode || 'V1' }}-0001</span></span>
+                  <button type="button" class="btn btn-primary btn-sm" (click)="saveNewFolderInModal()"
+                    [disabled]="savingFolder() || !newFolderName.trim() || !newFolderCode.trim()">
+                    {{ savingFolder() ? 'Adding…' : 'Create & select' }}
+                  </button>
+                </div>
+              </div>
+            }
+
+            @if (folders().length > 4) {
+              <input class="tc-folder-search" type="search" placeholder="Search folders by name or code…"
+                [ngModel]="folderSearchQuery()" (ngModelChange)="folderSearchQuery.set($event)" />
+            }
+
+            <div class="tc-folder-list" role="radiogroup" aria-label="Project folders">
+              @for (f of filteredModalFolders(); track f.folderId) {
+                <button type="button" class="tc-folder-card" role="radio"
+                  [class.selected]="selectedFolderId() === f.folderId"
+                  [attr.aria-checked]="selectedFolderId() === f.folderId"
+                  (click)="selectedFolderId.set(f.folderId)">
+                  <span class="tc-folder-radio" aria-hidden="true">
+                    @if (selectedFolderId() === f.folderId) {
+                      <span class="tc-folder-radio-dot"></span>
+                    }
+                  </span>
+                  <span class="id-chip">{{ f.folderCode }}</span>
+                  <span class="tc-folder-card-name">{{ f.folderName }}</span>
+                  <span class="tc-folder-card-right">
+                    <span class="tc-folder-key-preview mono">{{ s.projectCode }}-{{ f.folderCode }}-{{ nextTicketSeq(f) }}</span>
+                    <span class="tc-folder-card-count">{{ f.ticketCount }} {{ f.ticketCount === 1 ? 'ticket' : 'tickets' }}</span>
+                  </span>
+                </button>
+              } @empty {
+                <p class="muted small tc-folder-empty">No folders match “{{ folderSearchQuery() }}”.</p>
+              }
+            </div>
+          </div>
+        </div>
+
+        <ng-container modal-actions>
+          <button type="button" class="btn btn-ghost" (click)="closeTicketModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="confirmCreateTicket()"
+            [disabled]="!selectedFolderId() || busyRow() === tc.testCaseId">
+            @if (busyRow() === tc.testCaseId) {
+              Creating…
+            } @else if (selectedFolder(); as sf) {
+              Create ticket in {{ sf.folderCode }}
+            } @else {
+              Create ticket
+            }
+          </button>
+        </ng-container>
+      </app-modal>
+    }
+
     @if (editingSettings() && suite(); as s) {
       <app-new-suite [projectId]="s.projectId" [projectName]="s.projectName" [suite]="s"
         (closed)="editingSettings.set(false)"
@@ -493,10 +598,33 @@ export class SuitePage implements OnInit {
   readonly slug = slug;
 
   readonly suite = signal<TestSuite | null>(null);
+  readonly folders = signal<Folder[]>([]);
   readonly loading = signal(true);
   readonly busyGenerate = signal(false);
   readonly generateError = signal<string | null>(null);
   readonly busyRow = signal<number | null>(null);
+
+  readonly ticketModalCase = signal<TestCase | null>(null);
+  readonly selectedFolderId = signal<number | null>(null);
+  readonly folderSearchQuery = signal('');
+  readonly addingFolderInModal = signal(false);
+  readonly savingFolder = signal(false);
+  newFolderName = '';
+  newFolderCode = '';
+  folderCodeTouched = false;
+
+  readonly canManageFolders = computed(() => canManageMembers(this.suite()?.myRole as any));
+  readonly filteredModalFolders = computed(() => {
+    const q = this.folderSearchQuery().trim().toLowerCase();
+    if (!q) return this.folders();
+    return this.folders().filter(
+      (f) => f.folderName.toLowerCase().includes(q) || f.folderCode.toLowerCase().includes(q),
+    );
+  });
+  readonly selectedFolder = computed(() => {
+    const id = this.selectedFolderId();
+    return this.folders().find((f) => f.folderId === id) ?? null;
+  });
 
   readonly activeJob = signal<CrawlJobResponse | null>(null);
   readonly showCoverage = signal(false);
@@ -599,11 +727,28 @@ export class SuitePage implements OnInit {
     const suiteId = id ?? this.suite()?.suiteId;
     if (!suiteId) return;
     try {
-      this.suite.set(await this.api.testSuite(suiteId));
+      const loaded = await this.api.testSuite(suiteId);
+      this.suite.set(loaded);
+      void this.loadFolders(loaded.projectId);
     } catch {
       this.suite.set(null); // the interceptor has already said why
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async loadFolders(projectId: number) {
+    try {
+      const list = await this.api.folders(projectId);
+      this.folders.set(list);
+      const current = this.selectedFolderId();
+      if (!current || !list.some((f) => f.folderId === current)) {
+        const suiteFolder = this.suite()?.folderId;
+        const match = suiteFolder && list.some((f) => f.folderId === suiteFolder) ? suiteFolder : (list[0]?.folderId ?? null);
+        this.selectedFolderId.set(match);
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -661,6 +806,7 @@ export class SuitePage implements OnInit {
   }
 
   sourceLabel(c: TestCase) {
+    if (c.source === 'Doc' || c.sourceUrl?.startsWith('doc://')) return 'Doc';
     return c.source === 'Ai' ? 'AI' : c.source === 'Imported' ? 'Imported' : 'Manual';
   }
 
@@ -812,12 +958,79 @@ export class SuitePage implements OnInit {
     }
   }
 
-  async createTicket(c: TestCase) {
+  async openCreateTicketModal(c: TestCase) {
     if (c.linkedTicketId) return;
+    this.ticketModalCase.set(c);
+    this.addingFolderInModal.set(false);
+    this.folderSearchQuery.set('');
+    const s = this.suite();
+    if (s && this.folders().length === 0) {
+      await this.loadFolders(s.projectId);
+    }
+  }
+
+  closeTicketModal() {
+    this.ticketModalCase.set(null);
+    this.addingFolderInModal.set(false);
+    this.folderSearchQuery.set('');
+  }
+
+  nextTicketSeq(f: Folder): string {
+    return String((f.ticketCount ?? 0) + 1).padStart(4, '0');
+  }
+
+  toggleAddFolderInModal() {
+    const next = !this.addingFolderInModal();
+    this.addingFolderInModal.set(next);
+    if (next) {
+      this.newFolderName = '';
+      this.newFolderCode = '';
+      this.folderCodeTouched = false;
+    }
+  }
+
+  suggestModalFolderCode() {
+    if (this.folderCodeTouched) return;
+    const words = this.newFolderName.trim().split(/\s+/).filter(Boolean);
+    const derived = words.length > 1 ? words.map((w) => w[0]).join('') : (words[0] ?? '').slice(0, 4);
+    this.newFolderCode = derived.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 10);
+  }
+
+  async saveNewFolderInModal() {
+    const s = this.suite();
+    const name = this.newFolderName.trim();
+    const code = this.newFolderCode.trim().toUpperCase();
+    if (!s || !name || !code || this.savingFolder()) return;
+    this.savingFolder.set(true);
+    try {
+      const { id } = await this.api.createFolder(s.projectId, name, code);
+      this.addingFolderInModal.set(false);
+      await this.loadFolders(s.projectId);
+      this.selectedFolderId.set(id);
+      this.toast.success(`Folder “${name}” (${code}) created.`);
+    } catch (err) {
+      this.toast.error(this.message(err));
+    } finally {
+      this.savingFolder.set(false);
+    }
+  }
+
+  async confirmCreateTicket() {
+    const c = this.ticketModalCase();
+    const folderId = this.selectedFolderId();
+    if (!c || c.linkedTicketId || !folderId) return;
     this.busyRow.set(c.testCaseId);
     try {
-      const { id, ticketKey } = await this.api.createTicketFromTestCase(c.testCaseId);
+      const { id, ticketKey } = await this.api.createTicketFromTestCase(c.testCaseId, folderId);
       this.patch(c, { linkedTicketId: id, linkedTicketKey: ticketKey });
+      this.folders.update((list) =>
+        list.map((f) =>
+          f.folderId === folderId
+            ? { ...f, ticketCount: f.ticketCount + 1, openTicketCount: f.openTicketCount + 1 }
+            : f,
+        ),
+      );
+      this.closeTicketModal();
       this.toast.success(`${c.caseKey} is now ticket ${ticketKey}.`);
     } catch (err) {
       this.toast.error(this.message(err));

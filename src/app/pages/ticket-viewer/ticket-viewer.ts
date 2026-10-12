@@ -390,10 +390,19 @@ function toIsoDate(d: Date): string {
                       }
                     </td>
                     <td class="col-assignee">
-                      @if (t.assignees[0]; as first) {
+                      @if (t.assignees.length === 1) {
+                        @let first = t.assignees[0];
                         <span class="person" [title]="assigneeNames(t)">
                           <app-avatar size="sm" [userId]="first.userId" [name]="first.displayName" />
                           <span class="person-name">{{ first.displayName }}</span>
+                        </span>
+                      } @else if (t.assignees.length > 1) {
+                        <span class="person" [title]="assigneeNames(t)">
+                          <span class="trigger-multi-avatars">
+                            @for (a of t.assignees; track a.userId) {
+                              <app-avatar size="sm" [userId]="a.userId" [name]="a.displayName" />
+                            }
+                          </span>
                         </span>
                       } @else { <span class="muted">Unassigned</span> }
                     </td>
@@ -463,7 +472,7 @@ function toIsoDate(d: Date): string {
     }
 
     @if (creating()) {
-      <app-ticket-create [projectId]="projectId()" [folderId]="targetFolderId()" [suggestions]="suggestions()" [users]="users()" [outsiders]="outsiders()" (closed)="creating.set(false)" (created)="onCreated($event)" />
+      <app-ticket-create [projectId]="projectId()" [folderId]="targetFolderId()" [folders]="folders()" [suggestions]="suggestions()" [users]="users()" [outsiders]="outsiders()" (closed)="creating.set(false)" (created)="onCreated($event)" />
     }
     @if (ticket(); as id) {
       <app-ticket-details [ticketId]="id" [suggestions]="suggestions()" [users]="users()" [outsiders]="outsiders()" [canEdit]="canEdit()" (closed)="openTicket(null)" (changed)="refresh()" />

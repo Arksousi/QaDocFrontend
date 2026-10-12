@@ -10,12 +10,16 @@ import { Modal } from '../../shared/modal';
   selector: 'app-new-suite',
   imports: [FormsModule, Modal, Icon],
   template: `
-    <app-modal [heading]="suite() ? 'Edit crawl settings · ' + suite()!.title : 'New test suite · Crawl a site'" (closed)="closed.emit()">
+    <app-modal [heading]="modalHeading()" (closed)="closed.emit()">
       @if (!suite()) {
         <div class="mode-tabs" role="tablist" aria-label="Creation mode">
           <button type="button" role="tab" [class.active]="tab() === 'crawl'"
             [attr.aria-selected]="tab() === 'crawl'" (click)="tab.set('crawl')">
             <app-icon name="testcase" /> Crawl a site
+          </button>
+          <button type="button" role="tab" [class.active]="tab() === 'doc'"
+            [attr.aria-selected]="tab() === 'doc'" (click)="tab.set('doc')">
+            <app-icon name="template" /> Upload a Document
           </button>
           <button type="button" role="tab" [class.active]="tab() === 'html'"
             [attr.aria-selected]="tab() === 'html'" (click)="tab.set('html')">
@@ -37,10 +41,16 @@ import { Modal } from '../../shared/modal';
             <span class="hint">The initial page or login URL. Must be HTTP or HTTPS.</span>
           </label>
 
-          <label>Suite title
-            <input name="title" [(ngModel)]="title" maxlength="200"
-              placeholder="e.g. Web App Crawl - $(date)" />
-          </label>
+          <div class="grid-2">
+            <label>Suite title
+              <input name="title" [(ngModel)]="title" maxlength="200"
+                placeholder="e.g. Web App Crawl - $(date)" />
+            </label>
+            <label>Max pages to crawl
+              <input name="maxPages" type="number" min="1" max="1000" [(ngModel)]="maxPages"
+                placeholder="600" />
+            </label>
+          </div>
 
           <div class="grid-2">
             <label>Username / Email (optional)
@@ -59,6 +69,51 @@ import { Modal } from '../../shared/modal';
           <label>Business context / Notes
             <textarea name="notes" [(ngModel)]="notes" rows="3" maxlength="20000"
               placeholder="What this app does, key flows to emphasize, edge cases to watch for."></textarea>
+          </label>
+        </form>
+      } @else if (tab() === 'doc') {
+        <form id="docSuiteForm" class="form" (ngSubmit)="saveDoc()">
+          <p class="notice notice-info" role="note">
+            <app-icon name="template" />
+            <span>Upload a PDF or Word document (SRS, PRD, Functional Spec, or User Manual). The document will be analyzed and converted into test cases.</span>
+          </p>
+
+          <div class="field">
+            <label for="docProject">Project</label>
+            <input id="docProject" [value]="projectName()" disabled />
+          </div>
+
+          <label>Suite title *
+            <input name="docTitle" [(ngModel)]="docTitle" required maxlength="200"
+              placeholder="e.g. System Requirements Specification" />
+          </label>
+
+          <div class="field">
+            <label>PDF or Word files *</label>
+            <div class="dropzone"
+              [class.dragging]="docDragging()"
+              (click)="docPicker.click()"
+              (dragover)="onDocDragOver($event)"
+              (dragleave)="docDragging.set(false)"
+              (drop)="onDocDrop($event)"
+              role="button" tabindex="0" (keydown.enter)="docPicker.click()">
+              <app-icon name="template" />
+              <p><strong>Click to browse</strong> or drag PDF / Word files here</p>
+              <span class="hint">Supports .pdf, .docx, and .doc files</span>
+            </div>
+            <input #docPicker id="docFiles" type="file"
+              accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+              multiple hidden (change)="onDocFilesPicked($event)" />
+            @if (docFiles().length) {
+              <p class="hint" style="color: var(--primary); font-weight: 600; margin-top: 4px;">
+                ✓ {{ docFiles().length }} file(s) selected: {{ docFileNames() }}
+              </p>
+            }
+          </div>
+
+          <label>Business context / Notes
+            <textarea name="docNotes" [(ngModel)]="docNotes" rows="3" maxlength="20000"
+              placeholder="Optional context, specific modules to focus on, or testing rules."></textarea>
           </label>
         </form>
       } @else {
@@ -122,6 +177,15 @@ import { Modal } from '../../shared/modal';
               Crawl & Generate
             }
           </button>
+        } @else if (tab() === 'doc') {
+          <button class="btn btn-primary" type="submit" form="docSuiteForm"
+            [disabled]="saving() || !docTitle.trim() || docFiles().length === 0">
+            @if (saving()) {
+              <span class="spinner" aria-hidden="true"></span> Analyzing document…
+            } @else {
+              Upload & Generate
+            }
+          </button>
         } @else {
           <button class="btn btn-primary" type="submit" form="htmlSuiteForm"
             [disabled]="saving() || !htmlTitle.trim() || htmlFiles().length === 0">
@@ -138,7 +202,8 @@ import { Modal } from '../../shared/modal';
   styles: [`
     .mode-tabs {
       display: flex;
-      gap: 0.5rem;
+      flex-wrap: wrap;
+      gap: 0.4rem;
       border-bottom: 1px solid var(--border);
       margin-bottom: 1rem;
       padding-bottom: 0.5rem;
@@ -147,12 +212,12 @@ import { Modal } from '../../shared/modal';
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      padding: 0.4rem 0.8rem;
+      padding: 0.4rem 0.75rem;
       border: none;
       background: none;
       border-radius: var(--radius);
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       color: var(--muted);
     }
     .mode-tabs button.active {
@@ -179,7 +244,7 @@ export class NewSuite implements OnInit {
   readonly updated = output<TestSuite>();
   readonly crawlStarted = output<{ jobId: string; suiteId: number }>();
 
-  readonly tab = signal<'crawl' | 'html'>('crawl');
+  readonly tab = signal<'crawl' | 'doc' | 'html'>('crawl');
   readonly saving = signal(false);
 
   // Crawl fields
@@ -188,27 +253,47 @@ export class NewSuite implements OnInit {
   username = '';
   password = '';
   pathPrefix = '';
-  maxPages = 30;
+  maxPages = 600;
   extraUrlsText = '';
   storageStateJson: string | null = null;
   notes = '';
   authorized = true;
+
+  // Document upload fields (PDF / Word)
+  docTitle = '';
+  docNotes = '';
+  readonly docFiles = signal<File[]>([]);
+  readonly docDragging = signal(false);
 
   // HTML upload fields
   htmlTitle = '';
   htmlNotes = '';
   readonly htmlFiles = signal<File[]>([]);
 
+  modalHeading(): string {
+    const s = this.suite();
+    if (s) return 'Edit crawl settings · ' + s.title;
+    if (this.tab() === 'doc') return 'New test suite · Upload a Document';
+    if (this.tab() === 'html') return 'New test suite · Upload HTML files';
+    return 'New test suite · Crawl a site';
+  }
+
+  docFileNames(): string {
+    return this.docFiles().map((f) => f.name).join(', ');
+  }
+
   async ngOnInit() {
     const existing = this.suite();
     if (existing) {
       this.title = existing.title;
       this.notes = existing.businessDescription ?? '';
-      this.startUrl = existing.startUrl ?? '';
+      this.startUrl = existing.startUrl && !existing.startUrl.startsWith('local://') && !existing.startUrl.startsWith('doc://') && existing.startUrl !== 'offline-upload'
+        ? existing.startUrl
+        : '';
       if (!this.startUrl) {
         try {
           const job = await this.api.latestCrawlJobForSuite(existing.suiteId);
-          if (job?.startUrl && !job.startUrl.startsWith('local://') && job.startUrl !== 'offline-upload') {
+          if (job?.startUrl && !job.startUrl.startsWith('local://') && !job.startUrl.startsWith('doc://') && job.startUrl !== 'offline-upload') {
             this.startUrl = job.startUrl;
           }
         } catch {
@@ -229,6 +314,38 @@ export class NewSuite implements OnInit {
       this.toast.success('Storage state loaded.');
     };
     reader.readAsText(file);
+  }
+
+  onDocFilesPicked(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.setDocFiles(Array.from(input.files ?? []));
+  }
+
+  onDocDragOver(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.docDragging.set(true);
+  }
+
+  onDocDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    this.docDragging.set(false);
+    const files = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+      /\.(pdf|docx|doc)$/i.test(f.name)
+    );
+    if (files.length === 0) {
+      this.toast.error('Please drop a PDF (.pdf) or Word (.docx, .doc) file.');
+      return;
+    }
+    this.setDocFiles(files);
+  }
+
+  private setDocFiles(files: File[]) {
+    this.docFiles.set(files);
+    if (!this.docTitle.trim() && files.length > 0) {
+      this.docTitle = files[0].name.replace(/\.[^.]+$/, '');
+    }
   }
 
   onHtmlFilesPicked(event: Event) {
@@ -275,7 +392,7 @@ export class NewSuite implements OnInit {
         startUrl: this.startUrl.trim(),
         username: this.username.trim() || undefined,
         password: this.password || undefined,
-        maxPages: Number(this.maxPages) || 30,
+        maxPages: Math.min(1000, Math.max(1, Number(this.maxPages) || 600)),
         pathPrefix: this.pathPrefix.trim() || undefined,
         extraUrls: extraUrls.length ? extraUrls : undefined,
         storageStateJson: this.storageStateJson || undefined,
@@ -288,6 +405,28 @@ export class NewSuite implements OnInit {
       this.created.emit(res.suiteId);
     } catch (err: any) {
       this.toast.error(err?.error?.detail || err?.message || 'Failed to start crawl.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  async saveDoc() {
+    if (!this.docTitle.trim() || !this.docFiles().length || this.saving()) return;
+
+    this.saving.set(true);
+    try {
+      const res = await this.api.uploadCrawlDocument(
+        this.projectId(),
+        this.docTitle.trim(),
+        this.docNotes.trim() || undefined,
+        this.docFiles(),
+      );
+
+      this.toast.success(`Uploaded ${this.docFiles().length} document(s). Generating test cases…`);
+      this.crawlStarted.emit({ jobId: res.jobId, suiteId: res.suiteId });
+      this.created.emit(res.suiteId);
+    } catch (err: any) {
+      this.toast.error(err?.error?.detail || err?.message || 'Failed to upload document.');
     } finally {
       this.saving.set(false);
     }

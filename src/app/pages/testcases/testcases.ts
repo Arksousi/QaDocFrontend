@@ -82,7 +82,7 @@ import { NewSuite } from './new-suite';
                 <a class="card recent-card" [routerLink]="['/q/qa', s.suiteId]">
                   <span class="id-chip">{{ s.projectCode }}</span>
                   <h3>{{ s.title }}</h3>
-                  <p class="muted small">{{ s.screenCount }} {{ s.screenCount === 1 ? 'screenshot' : 'screenshots' }} · {{ s.caseCount }} {{ s.caseCount === 1 ? 'case' : 'cases' }}</p>
+                  <p class="muted small">{{ s.caseCount }} {{ s.caseCount === 1 ? 'Case' : 'Cases' }} · {{ s.createdTicketCount ?? 0 }} Created {{ (s.createdTicketCount ?? 0) === 1 ? 'Ticket' : 'Tickets' }}</p>
                   <p class="muted small">Created {{ s.createdAt | date: 'MMM d, y' }}@if (s.createdByName) { by {{ s.createdByName }} }</p>
                 </a>
                 @if (canCreate()) {
@@ -148,9 +148,12 @@ export class TestCasesPage implements OnInit {
 
   async ngOnInit() {
     try {
-      const projects = await this.api.projects();
+      const rawProjects = await this.api.projects();
+      const projects = [...rawProjects].sort(
+        (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() || b.projectId - a.projectId
+      );
       this.projects.set(projects);
-      // ?project= keeps a suite list shareable; otherwise the first project opens.
+      // ?project= keeps a suite list shareable; otherwise the last edited project opens first.
       const wanted = Number(this.route.snapshot.queryParamMap.get('project'));
       this.projectId.set(projects.some((p) => p.projectId === wanted) ? wanted : projects[0]?.projectId ?? null);
       if (this.projectId() != null) await this.loadSuites();

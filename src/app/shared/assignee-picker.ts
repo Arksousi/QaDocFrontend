@@ -123,13 +123,7 @@ let nextId = 0;
                   }
                   <span class="picker-count" aria-hidden="true">{{ loadOf(u) === 'full' ? 'Full' : shortLoad(u) }}</span>
                 </span>
-              } @else if (selected().length > 1) {
-          <div class="trigger-multi-avatars">
-            @for (id of selected(); track id) {
-              <app-avatar size="sm" [userId]="id" [name]="nameOf(id)" [card]="false" title="{{ nameOf(id) }}" />
-            }
-          </div>
-        } @else {
+              } @else {
                 <span class="picker-none-mark" aria-hidden="true"></span>
                 <span class="picker-name picker-placeholder">Unassigned</span>
                 <span class="picker-check"><input type="checkbox" [checked]="isPicked(r)" tabindex="-1" style="pointer-events: none; margin: 0; width: 14px; height: 14px; cursor: pointer;"></span>
@@ -152,7 +146,7 @@ export class AssigneePicker {
   readonly readonly = input(false);
   /** What the control is called, for its accessible name. */
   readonly label = input('Assigned To');
-  /** The API's shape: a list of at most one id. */
+  /** The API's shape: a list of user ids. */
   readonly selected = model<number[]>([]);
 
   readonly toneOf = avatarTone;
@@ -180,10 +174,11 @@ export class AssigneePicker {
     const match = (u: UserOption) => !q || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q);
     const rows: Row[] = q ? [] : [{ user: null, group: 'none' }];
     // Still on the ticket but in neither list (they lost access): listed, so it still says who has it.
-    const id = this.selected()[0] ?? null;
-    if (id !== null && !this.options().has(id)) {
-      const former: UserOption = { userId: id, displayName: this.nameOf(id), username: '', openTickets: 0, ticketLimit: null };
-      if (match(former)) rows.push({ user: former, group: 'members' });
+    for (const id of this.selected()) {
+      if (!this.options().has(id)) {
+        const former: UserOption = { userId: id, displayName: this.nameOf(id), username: '', openTickets: 0, ticketLimit: null };
+        if (match(former)) rows.push({ user: former, group: 'members' });
+      }
     }
     for (const u of this.members()) if (match(u)) rows.push({ user: u, group: 'members' });
     for (const u of this.outsiders()) if (match(u)) rows.push({ user: u, group: 'outsiders' });
@@ -192,11 +187,12 @@ export class AssigneePicker {
 
   readonly activeId = computed(() => (this.rows().length ? `${this.listId}-${this.active()}` : null));
 
-  /** Whether the pick, once saved, leaves them over their limit. Someone already on it is already counted. */
+  /** Whether any pick, once saved, leaves them over their limit. Someone already on it is already counted. */
   readonly overNow = computed(() => {
-    const id = this.selected()[0] ?? null;
-    const u = id === null ? undefined : this.options().get(id);
-    return exceedsWith(u, this.current().some((a) => a.userId === id));
+    return this.selected().some((id) => {
+      const u = this.options().get(id);
+      return exceedsWith(u, this.current().some((a) => a.userId === id));
+    });
   });
 
   /** A group heading goes above the first row of each group, once there is more than one group. */

@@ -58,11 +58,18 @@ import { AiChat } from './ai-chat';
       height: 56px;
       display: flex;
       align-items: center;
+      justify-content: center;
       padding: 0 var(--space-4);
       border-bottom: 1px solid var(--border);
     }
+    .sidebar-logo a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+    }
     .sidebar-logo img {
-      height: 32px;
+      height: 36px;
       max-width: 100%;
       object-fit: contain;
       display: block;

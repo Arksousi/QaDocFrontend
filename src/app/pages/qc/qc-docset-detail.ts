@@ -1,6 +1,7 @@
 import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
@@ -315,7 +316,40 @@ const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
                 <!-- Display Mode -->
                 @if (!editMode(kind)) {
-                  <article class="markdown-preview" [innerHTML]="renderMarkdown(activeDoc.markdown)"></article>
+                  <div class="doc-paper">
+                    <header class="doc-cover-header">
+                      <div class="doc-cover-top">
+                        @if (ds.logoAttachmentId) {
+                          <img [src]="attachmentUrl(ds.logoAttachmentId)" alt="App Logo" class="doc-cover-logo" />
+                        }
+                        <div class="doc-cover-headings">
+                          <div class="doc-cover-badge">
+                            {{ ds.appName }} · {{ kind === 'Documentation' ? 'Software Architecture & Functional Specification' : 'End-User Operational Manual' }}
+                          </div>
+                          <h1 class="doc-cover-title">{{ ds.title }}</h1>
+                        </div>
+                      </div>
+                      <div class="doc-cover-meta">
+                        <div class="doc-cover-meta-item">
+                          <span class="doc-cover-meta-label">Project</span>
+                          <span class="doc-cover-meta-val">{{ ds.projectName }} ({{ ds.projectCode }})</span>
+                        </div>
+                        <div class="doc-cover-meta-item">
+                          <span class="doc-cover-meta-label">Document Type</span>
+                          <span class="doc-cover-meta-val">{{ kind === 'Documentation' ? 'Software Documentation' : 'User Manual' }}</span>
+                        </div>
+                        <div class="doc-cover-meta-item">
+                          <span class="doc-cover-meta-label">Version & Status</span>
+                          <span class="doc-cover-meta-val">v{{ activeDoc.version }}.0 · {{ activeDoc.status }}</span>
+                        </div>
+                        <div class="doc-cover-meta-item">
+                          <span class="doc-cover-meta-label">Published</span>
+                          <span class="doc-cover-meta-val">{{ activeDoc.createdAt | date: 'mediumDate' }}</span>
+                        </div>
+                      </div>
+                    </header>
+                    <article class="markdown-preview" [innerHTML]="renderMarkdown(activeDoc.markdown)" (click)="onPreviewClick($event)"></article>
+                  </div>
                 } @else {
                   <!-- Edit Mode -->
                   <div class="markdown-editor-pane">
@@ -350,6 +384,7 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly maxImages = MAX_QC_DOCSET_IMAGES;
   readonly loading = signal(true);
@@ -797,21 +832,314 @@ export class QcDocSetDetailPage implements OnInit, OnDestroy {
     }
   }
 
-  renderMarkdown(markdown: string): string {
+  onPreviewClick(event: MouseEvent) {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+    if (target.tagName === 'IMG' && target.closest('.doc-inline-figure')) {
+      const img = target as HTMLImageElement;
+      if (img.src) {
+        this.viewingImage.set({ src: img.src, alt: img.alt || 'Screenshot' });
+      }
+    }
+  }
+
+  renderMarkdown(markdown: string): SafeHtml {
     if (!markdown) return '';
-    // Basic safe HTML renderer for markdown preview
-    return markdown
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-      .replace(/`([^`]+)`/gim, '<code>$1</code>')
-      .replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>')
-      .replace(/\n\n/gim, '<p></p>')
-      .replace(/\n/gim, '<br>');
+    const screens = this.docSet()?.screens ?? [];
+    const normalized = this.ensureInlineScreenMarkers(markdown, screens);
+    const lines = normalized.replace(/\r\n/g, '\n').split('\n');
+
+    const out: string[] = [];
+    let inUl = false;
+    let inOl = false;
+    let inCode = false;
+
+    const closeLists = () => {
+      if (inUl) {
+        out.push('</ul>');
+        inUl = false;
+      }
+      if (inOl) {
+        out.push('</ol>');
+        inOl = false;
+      }
+    };
+
+    const inlineScreenRegex = /!\[([^\]]*)\]\(\s*(?:screen:|#?screen-?)(\d+)\s*\)/i;
+    const headingScreenRegex = /^#{2,4}\s+(?:(?:\d+\.)+\d*\s*(?:[—\-–:]\s*)?)?(?:Screen|Step|Figure|Page|View)\s*#?(\d+)\b/i;
+    const numberedSubheadingRegex = /^###\s+(?:3|5)\.(\d+)\b/i;
+
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i];
+      const trimmed = rawLine.trim();
+
+      if (trimmed.startsWith('```')) {
+        closeLists();
+        if (!inCode) {
+          out.push('<pre class="doc-codeblock"><code>');
+          inCode = true;
+        } else {
+          out.push('</code></pre>');
+          inCode = false;
+        }
+        continue;
+      }
+
+      if (inCode) {
+        out.push(this.escapeHtml(rawLine) + '\n');
+        continue;
+      }
+
+      if (!trimmed) {
+        closeLists();
+        continue;
+      }
+
+      // Markdown table block
+      if (
+        trimmed.startsWith('|') &&
+        trimmed.endsWith('|') &&
+        i + 1 < lines.length &&
+        /^\|[\s:\-|]+\|$/.test(lines[i + 1].trim())
+      ) {
+        closeLists();
+        const headers = this.splitTableCells(trimmed);
+        i++; // skip separator row
+        const rows: string[][] = [];
+        while (i + 1 < lines.length) {
+          const nextTrim = lines[i + 1].trim();
+          if (nextTrim.startsWith('|') && nextTrim.endsWith('|')) {
+            rows.push(this.splitTableCells(nextTrim));
+            i++;
+          } else {
+            break;
+          }
+        }
+        out.push('<div class="doc-table-wrap"><table class="doc-table"><thead><tr>');
+        for (const h of headers) {
+          out.push(`<th>${this.formatInline(h)}</th>`);
+        }
+        out.push('</tr></thead><tbody>');
+        for (const r of rows) {
+          out.push('<tr>');
+          for (let c = 0; c < headers.length; c++) {
+            const cell = c < r.length ? r[c] : '';
+            out.push(`<td>${this.formatInline(cell)}</td>`);
+          }
+          out.push('</tr>');
+        }
+        out.push('</tbody></table></div>');
+        continue;
+      }
+
+      // Inline screen marker ![Caption](screen:N)
+      const screenMatch = inlineScreenRegex.exec(trimmed);
+      if (screenMatch) {
+        closeLists();
+        const screenNum = parseInt(screenMatch[2], 10);
+        const screen = screenNum >= 1 && screenNum <= screens.length ? screens[screenNum - 1] : null;
+        if (screen) {
+          const fallbackCaption = screen.caption || `Screen ${screenNum}`;
+          const altCaption = screenMatch[1]?.trim() || fallbackCaption;
+          const imgUrl = this.attachmentUrl(screen.attachmentId);
+          out.push(
+            `<figure class="doc-inline-figure">` +
+              `<div class="doc-inline-figure-bar">` +
+                `<span class="doc-inline-figure-badge">Figure ${screenNum}</span>` +
+                `<span class="doc-inline-figure-caption">${this.escapeHtml(altCaption)}</span>` +
+                `<span class="doc-inline-figure-hint">Click image to enlarge</span>` +
+              `</div>` +
+              `<div class="doc-inline-figure-body">` +
+                `<img src="${this.escapeHtml(imgUrl)}" alt="${this.escapeHtml(altCaption)}" loading="lazy" />` +
+              `</div>` +
+            `</figure>`
+          );
+        }
+        continue;
+      }
+
+      // Horizontal Rule
+      if (trimmed === '---' || trimmed === '***') {
+        closeLists();
+        out.push('<hr class="doc-hr" />');
+        continue;
+      }
+
+      // Callout / Blockquote
+      if (trimmed.startsWith('>')) {
+        closeLists();
+        const quoteLines: string[] = [];
+        let k = i;
+        while (k < lines.length && lines[k].trim().startsWith('>')) {
+          quoteLines.push(lines[k].trim().replace(/^>\s?/, ''));
+          k++;
+        }
+        i = k - 1;
+        out.push(`<blockquote class="doc-callout">${this.formatInline(quoteLines.join(' '))}</blockquote>`);
+        continue;
+      }
+
+      // Headings
+      if (trimmed.startsWith('#### ')) {
+        closeLists();
+        out.push(`<h4>${this.formatInline(trimmed.slice(5))}</h4>`);
+      } else if (trimmed.startsWith('### ')) {
+        closeLists();
+        out.push(`<h3>${this.formatInline(trimmed.slice(4))}</h3>`);
+      } else if (trimmed.startsWith('## ')) {
+        closeLists();
+        out.push(`<h2>${this.formatInline(trimmed.slice(3))}</h2>`);
+      } else if (trimmed.startsWith('# ')) {
+        closeLists();
+        out.push(`<h1>${this.formatInline(trimmed.slice(2))}</h1>`);
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        if (inOl) {
+          out.push('</ol>');
+          inOl = false;
+        }
+        if (!inUl) {
+          out.push('<ul>');
+          inUl = true;
+        }
+        out.push(`<li>${this.formatInline(trimmed.slice(2))}</li>`);
+      } else if (/^\d+\.\s+/.test(trimmed)) {
+        if (inUl) {
+          out.push('</ul>');
+          inUl = false;
+        }
+        if (!inOl) {
+          out.push('<ol>');
+          inOl = true;
+        }
+        const itemText = trimmed.replace(/^\d+\.\s+/, '');
+        out.push(`<li>${this.formatInline(itemText)}</li>`);
+      } else {
+        closeLists();
+        out.push(`<p>${this.formatInline(trimmed)}</p>`);
+      }
+    }
+
+    closeLists();
+    if (inCode) out.push('</code></pre>');
+
+    return this.sanitizer.bypassSecurityTrustHtml(out.join('\n'));
+  }
+
+  private ensureInlineScreenMarkers(markdown: string, screens: QcDocScreen[]): string {
+    if (!markdown || screens.length === 0) return markdown;
+
+    const inlineScreenRegex = /!\[([^\]]*)\]\(\s*(?:screen:|#?screen-?)(\d+)\s*\)/gi;
+    const headingScreenRegex = /^#{2,4}\s+(?:(?:\d+\.)+\d*\s*(?:[—\-–:]\s*)?)?(?:Screen|Step|Figure|Page|View)\s*#?(\d+)\b/i;
+    const numberedSubheadingRegex = /^###\s+(?:3|5)\.(\d+)\b/i;
+
+    const rawLines = markdown.replace(/\r\n/g, '\n').split('\n');
+    const cleanedLines: string[] = [];
+    let skippingLegacyAppendix = false;
+
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (/^#{1,3}\s+(?:Appendix\s*[:\-–—]?\s*)?Screen\s+References\b/i.test(trimmed)) {
+        skippingLegacyAppendix = true;
+        continue;
+      }
+      if (skippingLegacyAppendix && /^#{1,2}\s+/.test(trimmed)) {
+        skippingLegacyAppendix = false;
+      }
+      if (!skippingLegacyAppendix) {
+        cleanedLines.push(line);
+      }
+    }
+
+    const referenced = new Set<number>();
+    for (const line of cleanedLines) {
+      let m: RegExpExecArray | null;
+      inlineScreenRegex.lastIndex = 0;
+      while ((m = inlineScreenRegex.exec(line)) !== null) {
+        const idx = parseInt(m[2], 10);
+        if (idx >= 1 && idx <= screens.length) referenced.add(idx);
+      }
+    }
+
+    if (referenced.size >= screens.length) {
+      return cleanedLines.join('\n');
+    }
+
+    const resultLines: string[] = [];
+    for (let i = 0; i < cleanedLines.length; i++) {
+      const line = cleanedLines[i];
+      resultLines.push(line);
+      const trimmed = line.trim();
+
+      let matchedScreen = 0;
+      const hm = headingScreenRegex.exec(trimmed);
+      if (hm) {
+        matchedScreen = parseInt(hm[1], 10);
+      } else {
+        const nm = numberedSubheadingRegex.exec(trimmed);
+        if (nm) matchedScreen = parseInt(nm[1], 10);
+      }
+
+      if (matchedScreen >= 1 && matchedScreen <= screens.length && !referenced.has(matchedScreen)) {
+        let alreadyNearby = false;
+        for (let look = i + 1; look < Math.min(cleanedLines.length, i + 6); look++) {
+          inlineScreenRegex.lastIndex = 0;
+          const lm = inlineScreenRegex.exec(cleanedLines[look]);
+          if (lm && parseInt(lm[2], 10) === matchedScreen) {
+            alreadyNearby = true;
+            break;
+          }
+        }
+        if (!alreadyNearby) {
+          const cap = screens[matchedScreen - 1]?.caption || `Screen ${matchedScreen}`;
+          resultLines.push('');
+          resultLines.push(`![Screen ${matchedScreen}: ${cap}](screen:${matchedScreen})`);
+          resultLines.push('');
+          referenced.add(matchedScreen);
+        }
+      }
+    }
+
+    if (referenced.size < screens.length) {
+      resultLines.push('');
+      resultLines.push('## Visual Screen Walkthrough');
+      for (let s = 1; s <= screens.length; s++) {
+        if (!referenced.has(s)) {
+          const cap = screens[s - 1]?.caption || `Screen ${s}`;
+          resultLines.push('');
+          resultLines.push(`### Screen ${s} — ${cap}`);
+          resultLines.push('');
+          resultLines.push(`![Screen ${s}: ${cap}](screen:${s})`);
+          resultLines.push('');
+        }
+      }
+    }
+
+    return resultLines.join('\n');
+  }
+
+  private splitTableCells(tableRow: string): string[] {
+    let trimmed = tableRow.trim();
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+    return trimmed.split('|').map((c) => c.trim());
+  }
+
+  private formatInline(text: string): string {
+    const escaped = this.escapeHtml(text);
+    return escaped
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+  }
+
+  private escapeHtml(text: string): string {
+    return (text ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }
+
 
 

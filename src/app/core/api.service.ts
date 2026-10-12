@@ -196,6 +196,14 @@ export class ApiService {
     for (const f of files) body.append('files', f);
     return firstValueFrom(this.http.post<{ jobId: string; suiteId: number; status: string }>(`${this.base}/qa/crawl-jobs/upload-html`, body));
   };
+  uploadCrawlDocument = (projectId: number, suiteTitle: string, notes: string | undefined, files: File[]) => {
+    const body = new FormData();
+    body.append('projectId', String(projectId));
+    body.append('suiteTitle', suiteTitle);
+    if (notes) body.append('notes', notes);
+    for (const f of files) body.append('files', f);
+    return firstValueFrom(this.http.post<{ jobId: string; suiteId: number; status: string }>(`${this.base}/qa/crawl-jobs/upload-document`, body));
+  };
   testSuitePrompt = (id: number, maxCases?: number) =>
     firstValueFrom(
       this.http.get<{ prompt: string }>(
@@ -207,8 +215,8 @@ export class ApiService {
     firstValueFrom(this.http.put<void>(`${this.base}/testcases/${id}`, patch));
   deleteTestCase = (id: number) => firstValueFrom(this.http.delete<void>(`${this.base}/testcases/${id}`));
   /** Turns a case into a Bug through the ordinary ticket creation path, then links the two. */
-  createTicketFromTestCase = (id: number) =>
-    firstValueFrom(this.http.post<{ id: number; ticketKey: string }>(`${this.base}/testcases/${id}/create-ticket`, {}));
+  createTicketFromTestCase = (id: number, folderId?: number | null) =>
+    firstValueFrom(this.http.post<{ id: number; ticketKey: string }>(`${this.base}/testcases/${id}/create-ticket`, folderId ? { folderId } : {}));
 
   // QC Generator (Product Documentation & User Manual)
   qcDocSets = (projectId: number) =>

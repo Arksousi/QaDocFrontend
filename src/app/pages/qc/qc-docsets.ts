@@ -79,8 +79,6 @@ import { NewDocSetModal } from './new-docset';
               <div class="recent-item">
                 <a class="card recent-card qc-card" [routerLink]="['/q/qc', ds.docSetId]">
                   <div class="card-head">
-                    <span class="id-chip">{{ ds.projectCode }}</span>
-                    <span class="chip chip-soft">{{ ds.appName }}</span>
                     <span class="chip-lang uppercase">{{ ds.language }}</span>
                   </div>
                   <h3>{{ ds.title }}</h3>
@@ -144,7 +142,10 @@ export class QcDocSetsPage implements OnInit {
 
   async ngOnInit() {
     try {
-      const list = await this.api.projects();
+      const rawList = await this.api.projects();
+      const list = [...rawList].sort(
+        (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime() || b.projectId - a.projectId
+      );
       this.projects.set(list);
 
       const wanted = Number(this.route.snapshot.queryParamMap.get('project'));

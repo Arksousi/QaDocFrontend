@@ -1,7 +1,7 @@
-import { Component, inject, input, output, signal } from '@angular/core';
+import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../core/api.service';
-import { IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, TicketType, UserOption } from '../core/models';
+import { Folder, IMPACTS, PRIORITIES, STATES, SaveTicket, Suggestions, TICKET_TYPES, TicketType, UserOption } from '../core/models';
 import { ConfirmService } from '../core/confirm.service';
 import { ToastService } from '../core/toast.service';
 import { AssigneePicker, confirmOverLimit, newlyOverLimit } from './assignee-picker';
@@ -19,6 +19,15 @@ import { TagInput } from './tag-input';
         <label>Title *
           <input name="title" [(ngModel)]="draft.title" required maxlength="200" autofocus placeholder="Short summary of the issue or task" />
         </label>
+        @if (folders().length > 0) {
+          <label>Folder *
+            <select name="folderId" [(ngModel)]="draft.folderId" required>
+              @for (f of folders(); track f.folderId) {
+                <option [ngValue]="f.folderId">[{{ f.folderCode }}] {{ f.folderName }}</option>
+              }
+            </select>
+          </label>
+        }
         <div class="field">
           <span class="field-label">Assigned To</span>
           <app-assignee-picker label="Assigned To" [members]="users()" [outsiders]="outsiders()"
@@ -90,6 +99,7 @@ export class TicketCreate {
   readonly projectId = input.required<number>();
   /** Which folder the ticket is filed into; it decides the key, e.g. RMS-V1-0001. */
   readonly folderId = input.required<number>();
+  readonly folders = input<Folder[]>([]);
   readonly suggestions = input<Suggestions>({ tags: [] });
   readonly users = input<UserOption[]>([]);
   /** People not yet assignable; only filled for those who manage the project. Picking one adds them. */
@@ -104,6 +114,15 @@ export class TicketCreate {
   readonly types = TICKET_TYPES;
 
   draft: SaveTicket = { folderId: 0, title: '', description: '', ticketType: 'Bug', assignedToUserIds: [], state: 'Open', priority: 3, impact: 'Medium', tags: [] };
+
+  constructor() {
+    effect(() => {
+      const fId = this.folderId();
+      if (!this.draft.folderId && fId) {
+        this.draft.folderId = fId;
+      }
+    });
+  }
 
   onTypeChange(newType: TicketType) {
     if (newType === 'Requirement') {
@@ -135,7 +154,7 @@ export class TicketCreate {
       const { id } = await this.api.createTicket({
         ...this.draft,
         title: this.draft.title.trim(),
-        folderId: this.folderId(),
+        folderId: this.draft.folderId ? Number(this.draft.folderId) : this.folderId(),
         priority: this.draft.ticketType === 'Requirement' ? priority : (priority ?? 3),
         impact: this.draft.ticketType === 'Requirement' ? impact : (impact ?? 'Medium'),
       });

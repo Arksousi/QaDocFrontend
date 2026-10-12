@@ -349,8 +349,8 @@ export const MAX_SUITE_IMAGES = 10;
 export const TEST_STATUSES = ['Draft', 'Approved', 'Passed', 'Failed'] as const;
 export type TestCaseStatus = (typeof TEST_STATUSES)[number];
 
-/** Who wrote the case: a vision model, a pasted import, or a person. */
-export type TestCaseSource = 'Ai' | 'Imported' | 'Manual';
+/** Who wrote the case: a vision model, a document upload, a pasted import, or a person. */
+export type TestCaseSource = 'Ai' | 'Imported' | 'Manual' | 'Doc';
 
 /** One screenshot. The bytes live in attachment storage, so an <img> fetches them through it. */
 export interface TestSuiteScreen {
@@ -395,6 +395,7 @@ export interface TestSuite {
   isDemo: boolean;
   screenCount: number;
   caseCount: number;
+  createdTicketCount?: number;
   startUrl?: string | null;
   projectName: string;
   projectCode: string;
